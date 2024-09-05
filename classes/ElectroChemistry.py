@@ -1,0 +1,134 @@
+# Parent electrochemistry file class
+from .. import ectools as ec
+
+from matplotlib import pyplot as plt
+import re
+import dateutil.parser as date_parser
+
+class ElectroChemistry():
+    ''' The default container and parent class for containing electrochemistry files and methods
+    '''
+
+    # Class variables and constants
+    identifiers = set()
+    get_columns = { # Data columns to be imported. Keys will become instance attributes so must adhere to a strict naming scheme. The values should be list-like to support multiple different regex identifiers, which are used in a re.search. 
+        'redherring': (r'redherring',), # An identifier which is not found will not generate errors
+        'time': (r'time/(.?s)',), # Time column
+        'pot': (r'<?Ewe>?/(.?V)', r'potential',), # Potential column
+        'curr':(r'<?I>?/(.?A)',)} # Current column
+    # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
+    
+    
+    # Initialize
+    def __init__(self, fname, fpath, meta, **kwargs):
+        ''' Create a generalized ElecroChemistry object'''
+        self.fname = fname # Filename
+        self.fpath = fpath # Path to file
+        self.meta = meta # Metadata block
+        for key, val in kwargs.items():
+            setattr(self, key, val)
+        # Empty arrays should help with intellisense and linting. Is there a better way?
+        self.time = ec.np.empty(0)
+        self.curr = ec.np.empty(0)
+        self.pot = ec.np.empty(0)
+        self.units = {}
+        # These should remain empty in this class
+        #self.cycle = ec.np.empty(0)
+        #self.oxred = ec.np.empty(0)
+    def __getitem__(self, key):
+        '''Makes object subscriptable like a dict'''
+        return self.__getattribute__(key)
+    def __setitem__(self, key, value):
+        '''Makes object attributes assignable like a dict'''
+        self.__setattr__(key, value)
+    def __repr__(self):
+        return self.__class__.__name__ + 'object from file' + self.fname
+
+    # Class methods
+    def parse_meta_mpt(self):
+        '''Parse attributes from the metadata block'''
+        #self.colon_delimited = [row.split(':') for row in self.meta]
+        self.colonsep = {} # For colon sepatated metadata
+        wsep = [] # For width separated metadata, which may include 
+        split20 = lambda s: [s.strip()] if len(s) < 20 else [s[:20].strip(), *split20(s[20:])] # 20 pt splitter and stripper
+        for row in self.meta:
+            if (':' in row) and (row[18:20] != '  '):
+                self.colonsep[row.split(':', 1)[0].strip()] = row.split(':', 1)[1].strip()
+            elif (len(row)>20) and (row[18:20] == '  '):
+                if re.match(r'vs\.', row):
+                    wsep[-1].append(split20(row[20:]))
+                else:
+                    m = re.search(r'\((.?\w)\)', row[:20]) # look for units in parenthesis
+                    if m:
+                        wsep.append([row[:m.start(0)].strip(), split20(row[20:]), m.group(1)])
+                    else:
+                        wsep.append([row[:20].strip(), split20(row[20:])])
+        self.widthsep = {row[0]: row[1:] for row in wsep} # If the experiment was modified during run, the last value will be entered
+        
+        self.starttime = date_parser.parse(self.colonsep['Acquisition started on'])
+
+    def makelab(self, axid):
+        '''Generate an axis label with unit'''
+        d = {'curr': 'I ', 'pot': 'E ', 'time': 'time '}
+        return d[axid] + '(' + self.units[axid] + ')'
+
+    def plot(self,
+        ax=None, # pyplot axes
+        x='time', # key for x axis array
+        y='curr', # key for y axis array
+        color = 'tab:blue', # color
+        hue = None, # split the plot based on values in a third array
+        clause = None, # logical array to slice the arrays
+        ax_kws = {}, # arguments passed to ax.set()
+        **kwargs):
+        '''Plot data using matplotlib. 
+            Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
+        if not ax:
+            _, ax = plt.subplots()
+        if not clause:
+            clause = ec.np.full(self[x].shape, True)
+        if hue:
+            for val in ec.np.unique(self[hue][clause]):
+                ax.plot(
+                    self[x][self[hue]==val], 
+                    self[y][self[hue]==val], 
+                    label = str(val),
+                     **kwargs)
+        else:
+            ax.plot(
+                self[x][clause], 
+                self[y][clause], 
+                color = color,
+                **kwargs)
+        if not 'xlabel' in ax_kws:
+            ax_kws['xlabel'] = self.makelab(x)
+        if not 'ylabel' in ax_kws:
+            ax_kws['ylabel'] = self.makelab(y)
+        ax.set(**ax_kws) # Set axes properties, such as xlabel etc.
+        return ax
+        
+    def plotyy(self,
+            fig = None,
+            x = 'time', # key for the common x-axis
+            y_left = 'pot', # key for left y-axis
+            color_left = 'tab:blue', # color for left y-axis
+            y_right = 'curr', # key for right y-axis
+            color_right = 'tab:red', # color for right y-axis
+            hue = None, # split the plot based on values in a third array
+            clause = None, # logical array to slice the arrays
+            ax_left_kws = {}, # arguments passed to ax.set()
+            ax_right_kws = {}, # arguments passed to ax.set()
+            **kwargs):
+        '''Plot data with two y-scales using matplotlib. 
+            Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
+        if not fig:
+            fig = ec.plt.figure()
+        ax_left = fig.add_subplot(111)
+        ax_left = self.plot(ax=ax_left, x=x, y=y_left, color=color_left, hue=hue, clause=clause, ax_kws=ax_left_kws, **kwargs)
+        
+        ax_right = ax_left.twinx()
+        ax_right = self.plot(ax=ax_right, x=x, y=y_right, color=color_right, hue=hue, clause=clause, ax_kws=ax_right_kws, **kwargs)
+        
+        ax_left.spines['left'].set_color(color_left)
+        ax_right.spines['right'].set_color(color_right)
+        return fig, (ax_left, ax_right)
