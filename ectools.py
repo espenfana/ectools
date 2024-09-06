@@ -51,10 +51,15 @@ class ecImporter():
                 row_1 = f.readline().strip()
                 if re.match('EC-Lab ASCII FILE', row_1): # File identified as EC-lab
                     container = parse_file_mpt(fname, fpath)
+                elif re.match('EXPLAIN', row_1):
+                    self.log.append('-F- ' +  fpath + fname)
+                    self.log.append('Format is Gamry')
+                    print(self.log[-2:])
                 else:
                     self.log.append('-F- ' +  fpath + fname)
                     self.log.append('Not a recognized format')
                     return
+                
                 if self.fname_parser:
                     fname_dict = self.fname_parser(fpath, fname)
                     for key, val in fname_dict.items():
