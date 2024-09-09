@@ -81,9 +81,14 @@ def get_class(ident : str):
                 return child
     return classes.ElectroChemistry # If no child indentifier is matched, return parent ElectroChemistry class
 
+def parse_file_gamry(fname, fpath):
+    '''Parse a Gamry formatted ascii file (such as .-DAT). Returns a custom electrochemistry container object '''
+    try:
+        with open(fpath + fname) as f: # Open the file to read the first lines
+            
 
 def parse_file_mpt(fname, fpath):
-    '''Parse an EC-lab ascii file. Returns a container object'''
+    '''Parse an EC-lab ascii file. Returns a custom electrochemistry container object container object'''
     try:
         meta_list = []
         with open(fpath + fname) as f: # Open the file to read the first lines
