@@ -83,9 +83,39 @@ def get_class(ident : str):
 
 def parse_file_gamry(fname, fpath):
     '''Parse a Gamry formatted ascii file (such as .-DAT). Returns a custom electrochemistry container object '''
+    meta_dict = {}
     try:
         with open(fpath + fname) as f: # Open the file to read the first lines
-            
+            while line:=f.readline().strip():
+                line = line.split('\t')
+                if "TABLE" in line:
+                    
+                    break
+                match len(line):
+                    case 1:
+                        continue
+                    case 2: 
+                        meta_dict[line[0]] = {'value': line[1]}
+                    case 4 | 5:
+                        if line[0] == 'NOTES': # handle the multi-line note field
+                            meta_dict[line[0]] = {'value': ""}
+                            for i in range(0,int(line[2])):
+                                meta_dict[line[0]]['value'] += f.readline().strip() # this also accounts for empty lines in notes, so the while loop keeps running
+                        else:
+                            meta_dict[line[0]] = {
+                                'label': line[1],
+                                'value': line[2],
+                                'description': ', '.join(line[3:])
+                            }
+                    case _:
+                        print('WTF?') # todo raise error
+                        print(line)
+        technique = meta_dict['TAG']['value']
+        print(technique)    
+                 
+    except Exception as E:
+        print('ectools.parse_file_gamry error:')
+        raise E
 
 def parse_file_mpt(fname, fpath):
     '''Parse an EC-lab ascii file. Returns a custom electrochemistry container object container object'''
