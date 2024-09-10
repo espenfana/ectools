@@ -52,9 +52,7 @@ class ecImporter():
                 if re.match('EC-Lab ASCII FILE', row_1): # File identified as EC-lab
                     container = parse_file_mpt(fname, fpath)
                 elif re.match('EXPLAIN', row_1):
-                    self.log.append('-F- ' +  fpath + fname)
-                    self.log.append('Format is Gamry')
-                    print(self.log[-2:])
+                    container = parse_file_gamry(fname, fpath)
                 else:
                     self.log.append('-F- ' +  fpath + fname)
                     self.log.append('Not a recognized format')
@@ -77,6 +75,7 @@ def get_class(ident : str):
     '''Tries to match the identifier with the container classes available.'''
     for child in classes.ElectroChemistry.__subclasses__():
         for class_ident in child.identifiers:
+            print(class_ident, child.identifiers)
             if re.match(class_ident, ident):
                 return child
     return classes.ElectroChemistry # If no child indentifier is matched, return parent ElectroChemistry class
@@ -89,7 +88,6 @@ def parse_file_gamry(fname, fpath):
             while line:=f.readline().strip():
                 line = line.split('\t')
                 if "TABLE" in line:
-                    
                     break
                 match len(line):
                     case 1:
@@ -111,7 +109,9 @@ def parse_file_gamry(fname, fpath):
                         print('WTF?') # todo raise error
                         print(line)
         technique = meta_dict['TAG']['value']
-        print(technique)    
+        container_class = get_class(technique)
+        print(container_class)
+        container = container_class(fname)
                  
     except Exception as E:
         print('ectools.parse_file_gamry error:')

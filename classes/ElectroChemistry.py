@@ -67,6 +67,33 @@ class ElectroChemistry():
         
         self.starttime = date_parser.parse(self.colonsep['Acquisition started on'])
 
+    def parse_meta_gamry(self):
+        meta_dict = {}
+        for line in self.meta:
+            line = line.split('\t')
+            if "TABLE" in line:
+                break
+            match len(line):
+                case 1:
+                    continue
+                case 2: 
+                    meta_dict[line[0]] = {'value': line[1]}
+                case 4 | 5:
+                    if line[0] == 'NOTES': # handle the multi-line note field
+                        meta_dict[line[0]] = {'value': ""}
+                        for i in range(0,int(line[2])):
+                            meta_dict[line[0]]['value'] += f.readline().strip() # this also accounts for empty lines in notes, so the while loop keeps running
+                    else:
+                        meta_dict[line[0]] = {
+                            'label': line[1],
+                            'value': line[2],
+                            'description': ', '.join(line[3:])
+                        }
+                case _:
+                    print('WTF?') # todo raise error
+                    print(line)
+
+
     def makelab(self, axid):
         '''Generate an axis label with unit'''
         d = {'curr': 'I ', 'pot': 'E ', 'time': 'time '}

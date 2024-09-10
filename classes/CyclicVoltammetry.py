@@ -4,7 +4,7 @@ class CyclicVoltammetry(ElectroChemistry):
     '''Cyclic voltammetry file container'''
 
     # Class variables and constants
-    identifiers = {'Cyclic Voltammetry'} # Strings in the raw files which indicate the technique
+    identifiers = {'Cyclic Voltammetry', 'CV'} # Strings in the raw files which indicate the technique
     get_columns = {**ElectroChemistry.get_columns,
         'oxred': (r'ox/red',), 
         'cycle': (r'cycle number',),
@@ -35,6 +35,10 @@ class CyclicVoltammetry(ElectroChemistry):
         self.pot_end = float(self.widthsep['Ef'][0][0])
         self.units['pot_end'] = self.widthsep['Ef'][1]
         self.ncycles = int(self.widthsep['nc cycles'][0][0])
+
+    def parse_meta_gamry(self):
+        '''Parse the metadata dictionary into attributes'''
+        super().parse_meta_gamry(self)
 
     def plot(self, 
     ax=None, 
