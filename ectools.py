@@ -75,44 +75,52 @@ def get_class(ident : str):
     '''Tries to match the identifier with the container classes available.'''
     for child in classes.ElectroChemistry.__subclasses__():
         for class_ident in child.identifiers:
-            print(class_ident, child.identifiers)
             if re.match(class_ident, ident):
                 return child
     return classes.ElectroChemistry # If no child indentifier is matched, return parent ElectroChemistry class
 
 def parse_file_gamry(fname, fpath):
     '''Parse a Gamry formatted ascii file (such as .-DAT). Returns a custom electrochemistry container object '''
-    meta_dict = {}
+    meta_list = []
     try:
         with open(fpath + fname) as f: # Open the file to read the first lines
-            while line:=f.readline().strip():
-                line = line.split('\t')
-                if "TABLE" in line:
-                    break
-                match len(line):
-                    case 1:
-                        continue
-                    case 2: 
-                        meta_dict[line[0]] = {'value': line[1]}
-                    case 4 | 5:
-                        if line[0] == 'NOTES': # handle the multi-line note field
-                            meta_dict[line[0]] = {'value': ""}
-                            for i in range(0,int(line[2])):
-                                meta_dict[line[0]]['value'] += f.readline().strip() # this also accounts for empty lines in notes, so the while loop keeps running
-                        else:
-                            meta_dict[line[0]] = {
-                                'label': line[1],
-                                'value': line[2],
-                                'description': ', '.join(line[3:])
-                            }
-                    case _:
-                        print('WTF?') # todo raise error
-                        print(line)
-        technique = meta_dict['TAG']['value']
-        container_class = get_class(technique)
-        print(container_class)
-        container = container_class(fname)
-                 
+            while line:=f.readline():
+
+                if line == "": # at EOF, readline() will return an empty string
+                    raise Exception('No TABLE detected')
+                    
+                line = line.rstrip().split('\t')
+                if 'TABLE' in line: break 
+                meta_list.append(line)
+
+                if 'TAG' in line:
+                    technique = line[1]
+            
+            #next two lines should be header and units
+            header_row = f.readline().split('\t')
+            units_row = f.readline().split('\t')
+            # Grabbing the electrochemistry technique from the metadata, we can use the appropriate container object
+            container_class = get_class(technique)
+            print(container_class) # TODO for testing
+            container = container_class(fname, fpath, meta_list)
+
+            coln = {}
+            units = {}
+            for i, column_header in enumerate(header_row):
+                for key, id_tuple in container.get_columns.items():
+                    for id_rgx in id_tuple:
+                        if re.match(id_rgx, column_header):
+                            coln[key] = i
+                            units[key] = units_row[i]
+            print(coln)
+            print(header_row)  
+            print(units_row)          
+            
+            if technique == 'CV':
+                # CV's require custom handing due to "CURVE"s being separate tables
+                pass
+        container.parse_meta_gamry()
+        return container         
     except Exception as E:
         print('ectools.parse_file_gamry error:')
         raise E
@@ -127,6 +135,8 @@ def parse_file_mpt(fname, fpath):
             head_row = int(re.findall(r'\d\d', meta_list[1])[0]) -1 # Header row
             for _ in range(2, head_row+1):
                 meta_list.append(f.readline().strip()) # Read the rest of the metadata block
+
+        # Grabbing the electrochemistry technique from the metadata, we can use the appropriate container object
         technique = meta_list[3] # The fourth line of the block should contain the EC-Lab technique used
         container_class = get_class(technique) # Match the technique to the container classes
         container = container_class(fname, fpath, meta_list) # Initialize the container

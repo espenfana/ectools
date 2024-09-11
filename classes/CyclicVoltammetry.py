@@ -37,8 +37,9 @@ class CyclicVoltammetry(ElectroChemistry):
         self.ncycles = int(self.widthsep['nc cycles'][0][0])
 
     def parse_meta_gamry(self):
-        '''Parse the metadata dictionary into attributes'''
-        super().parse_meta_gamry(self)
+        '''Parse the metadata list into attributes'''
+        super().parse_meta_gamry()
+        # tabsep gamry metadata is in meta_dict
 
     def plot(self, 
     ax=None, 

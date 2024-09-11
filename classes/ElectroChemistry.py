@@ -13,9 +13,9 @@ class ElectroChemistry():
     identifiers = set()
     get_columns = { # Data columns to be imported. Keys will become instance attributes so must adhere to a strict naming scheme. The values should be list-like to support multiple different regex identifiers, which are used in a re.search. 
         'redherring': (r'redherring',), # An identifier which is not found will not generate errors
-        'time': (r'time/(.?s)',), # Time column
-        'pot': (r'<?Ewe>?/(.?V)', r'potential',), # Potential column
-        'curr':(r'<?I>?/(.?A)',)} # Current column
+        'time': (r'time/(.?s)',r'^T$',), # Time column
+        'pot': (r'<?Ewe>?/(.?V)', r'potential', r'^Vf$',), # Potential column
+        'curr':(r'<?I>?/(.?A)', r'^Im$')} # Current column
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
     
     
@@ -68,30 +68,28 @@ class ElectroChemistry():
         self.starttime = date_parser.parse(self.colonsep['Acquisition started on'])
 
     def parse_meta_gamry(self):
-        meta_dict = {}
-        for line in self.meta:
-            line = line.split('\t')
-            if "TABLE" in line:
-                break
+        self.meta_dict = {}
+        i = 0
+        while i < len(self.meta):
+            line = self.meta[i]
             match len(line):
-                case 1:
-                    continue
                 case 2: 
-                    meta_dict[line[0]] = {'value': line[1]}
+                    self.meta_dict[line[0]] = {'value': line[1]}
                 case 4 | 5:
                     if line[0] == 'NOTES': # handle the multi-line note field
-                        meta_dict[line[0]] = {'value': ""}
-                        for i in range(0,int(line[2])):
-                            meta_dict[line[0]]['value'] += f.readline().strip() # this also accounts for empty lines in notes, so the while loop keeps running
+                        self.meta_dict[line[0]] = {'value': ""}
+                        i += 1
+                        for _ in range(i,int(line[2])):
+                            self.meta_dict[line[0]]['value'] += self.meta[i]
+                            i += 1
                     else:
-                        meta_dict[line[0]] = {
+                        self.meta_dict[line[0]] = {
                             'label': line[1],
                             'value': line[2],
                             'description': ', '.join(line[3:])
                         }
-                case _:
-                    print('WTF?') # todo raise error
-                    print(line)
+            i += 1
+        
 
 
     def makelab(self, axid):
