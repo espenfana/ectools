@@ -5,7 +5,7 @@ class OpenCircuit(ElectroChemistry):
     '''Open Circuit Voltage file container'''
 
     # Class variables and constants
-    identifiers = {'Open Circuit'} # Strings in the raw files which indicate the technique
+    identifiers = {'Open Circuit', 'CORPOT'} # Strings in the raw files which indicate the technique
     get_columns = {**ElectroChemistry.get_columns,
 
     }

@@ -4,7 +4,7 @@ class ChronoAmperometry(ElectroChemistry):
     '''Chronoamperometry file container'''
 
     # Class variables and constants
-    identifiers = {'Chronoamperometry'} # Strings in the raw files which indicate the technique
+    identifiers = {'Chronoamperometry', 'CHRONOA'} # Strings in the raw files which indicate the technique
     get_columns = {**ElectroChemistry.get_columns,
 
     }

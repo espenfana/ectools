@@ -12,8 +12,4 @@ fname = '240902_18_MCL13_cswWE_CV50_750C_CO2.DTA'
 imp = ec.ecImporter()
 f = imp.load_file(fpath, fname)
 
-print(f.meta_dict)
-
-for key, val in f.meta_dict.items():
-    print(key)
-    print(val)
+f.plot(hue='cycle')

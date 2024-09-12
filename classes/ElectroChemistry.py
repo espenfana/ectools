@@ -13,6 +13,7 @@ class ElectroChemistry():
     identifiers = set()
     get_columns = { # Data columns to be imported. Keys will become instance attributes so must adhere to a strict naming scheme. The values should be list-like to support multiple different regex identifiers, which are used in a re.search. 
         'redherring': (r'redherring',), # An identifier which is not found will not generate errors
+        'signal': (r'Sig',), # Signal, i.e. target potenital
         'time': (r'time/(.?s)',r'^T$',), # Time column
         'pot': (r'<?Ewe>?/(.?V)', r'potential', r'^Vf$',), # Potential column
         'curr':(r'<?I>?/(.?A)', r'^Im$')} # Current column
@@ -89,8 +90,19 @@ class ElectroChemistry():
                             'description': ', '.join(line[3:])
                         }
             i += 1
-        
-
+        # Import into attributes         
+        metamap = {'area': 'AREA'}
+        for key, label in metamap.items():
+            self[key] = float(self.meta_dict[label]['value'])
+            try:
+                self.units[key] = ec.re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
+            except:
+                pass
+        date_str = self.meta_dict['DATE']['value']
+        time_str = self.meta_dict['TIME']['value']
+        print(date_str + ' '+ time_str)
+        self.starttime = date_parser.parse(date_str + ' '+ time_str)
+        print(self.starttime)
 
     def makelab(self, axid):
         '''Generate an axis label with unit'''

@@ -104,8 +104,8 @@ def parse_file_gamry(fname, fpath):
             print(container_class) # TODO for testing
             container = container_class(fname, fpath, meta_list)
 
-            coln = {}
-            units = {}
+            coln = {} # identifier to column number dictionary
+            units = {} # identifier to column unit dictionary
             for i, column_header in enumerate(header_row):
                 for key, id_tuple in container.get_columns.items():
                     for id_rgx in id_tuple:
@@ -116,9 +116,28 @@ def parse_file_gamry(fname, fpath):
             print(header_row)  
             print(units_row)          
             
+            data_block = []
             if technique == 'CV':
-                # CV's require custom handing due to "CURVE"s being separate tables
-                pass
+                # gamry CV's require custom handing due to "CURVE"s being separate tables
+                cycle_list = []
+                ncycle = 1
+                while line := f.readline():
+                    if line[:5] == 'CURVE':
+                        ncycle +=1
+                        assert f.readline().split('\t') == header_row
+                        assert f.readline().split('\t') == units_row
+                        continue
+                    data_block.append(line.split('\t'))
+                    cycle_list.append(ncycle)
+            else: # assuming other types have a single data table
+                data_block = [line.split('\t') for line in f.readlines()]
+            print(data_block[0])
+            print(len(data_block), len(data_block[0]))
+            for key, j in coln.items():
+                container[key] = np.array([line[j] for line in data_block], dtype='float')   
+            if technique == 'CV':
+                container['cycle'] = np.array(cycle_list, dtype='int')
+        container.units = units
         container.parse_meta_gamry()
         return container         
     except Exception as E:
