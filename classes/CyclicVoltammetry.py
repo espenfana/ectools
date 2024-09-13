@@ -62,6 +62,8 @@ class CyclicVoltammetry(ElectroChemistry):
     ax_kws={}, 
     **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
+        if hue is True:
+            hue = 'cycle'
         if cycles:
             clause = ec.np.where(ec.np.logical_and(self['cycle']>=cycles[0],  self['cycle']<=cycles[1]))
         ax = super().plot(ax=ax, x=x, y=y, clause=clause, hue=hue, ax_kws=ax_kws, **kwargs)

@@ -100,9 +100,7 @@ class ElectroChemistry():
                 pass
         date_str = self.meta_dict['DATE']['value']
         time_str = self.meta_dict['TIME']['value']
-        print(date_str + ' '+ time_str)
         self.starttime = date_parser.parse(date_str + ' '+ time_str)
-        print(self.starttime)
 
     def makelab(self, axid):
         '''Generate an axis label with unit'''
@@ -124,6 +122,8 @@ class ElectroChemistry():
             _, ax = plt.subplots()
         if not clause:
             clause = ec.np.full(self[x].shape, True)
+        if hue is True: # no hue set by technique
+            hue = False
         if hue:
             for val in ec.np.unique(self[hue][clause]):
                 ax.plot(
