@@ -26,6 +26,8 @@ class ecImporter():
         '''
         Parse and load the contents of a folder (not subfolders)
         '''
+        if fpath[-1] != '\\':
+            fpath += '\\' 
         flist = os.listdir(fpath)
         eclist = classes.ecList(fpath=fpath, **kwargs)
         for i, fname in enumerate(flist):
@@ -33,7 +35,8 @@ class ecImporter():
                 f = self.load_file(fpath, fname)
                 if f:
                     eclist.append(f)
-            except:
+            except Exception as E:
+                print(E) # TODO testing
                 pass
             finally:
                 print(f'\rProcessing {i} of {len(flist)}' + '.'*(i%7+1), end='\r')
@@ -101,7 +104,7 @@ def parse_file_gamry(fname, fpath):
             units_row = f.readline().split('\t')
             # Grabbing the electrochemistry technique from the metadata, we can use the appropriate container object
             container_class = get_class(technique)
-            print(container_class) # TODO for testing
+            #print(container_class) # TODO for testing
             container = container_class(fname, fpath, meta_list)
 
             coln = {} # identifier to column number dictionary
@@ -111,10 +114,7 @@ def parse_file_gamry(fname, fpath):
                     for id_rgx in id_tuple:
                         if re.match(id_rgx, column_header):
                             coln[key] = i
-                            units[key] = units_row[i]
-            print(coln)
-            print(header_row)  
-            print(units_row)          
+                            units[key] = units_row[i]      
             
             data_block = []
             if technique == 'CV':
@@ -131,8 +131,7 @@ def parse_file_gamry(fname, fpath):
                     cycle_list.append(ncycle)
             else: # assuming other types have a single data table
                 data_block = [line.split('\t') for line in f.readlines()]
-            print(data_block[0])
-            print(len(data_block), len(data_block[0]))
+
             for key, j in coln.items():
                 container[key] = np.array([line[j] for line in data_block], dtype='float')   
             if technique == 'CV':
