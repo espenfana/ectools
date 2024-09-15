@@ -4,6 +4,7 @@ from .. import ectools as ec
 from matplotlib import pyplot as plt
 import re
 import dateutil.parser as date_parser
+from datetime import datetime
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
@@ -98,6 +99,7 @@ class ElectroChemistry():
                 self.units[key] = ec.re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
             except:
                 pass
+        
         date_str = self.meta_dict['DATE']['value']
         time_str = self.meta_dict['TIME']['value']
         self.starttime = date_parser.parse(date_str + ' '+ time_str)

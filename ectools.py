@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import re
 import os
+from datetime import datetime
 
 # Relational imports
 from . import classes # classes is a collection of container object classes meant for different electrochemical methods 
@@ -138,6 +139,9 @@ def parse_file_gamry(fname, fpath):
                 container['cycle'] = np.array(cycle_list, dtype='int')
         container.units = units
         container.parse_meta_gamry()
+
+        #container['realtime'] = np.array(container['time'], dtype=datetime) + container.starttime
+       
         return container         
     except Exception as E:
         print('ectools.parse_file_gamry error:')
