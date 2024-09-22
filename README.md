@@ -2,6 +2,7 @@
 Importing, plotting and working with electrochemistry data
 
 TODO:
+* add filter (e.g. cycle ==)
 * add real time column
 * add normalization
 * more meta parsing
