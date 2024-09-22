@@ -15,7 +15,5 @@ f = imp.load_file(fpath, fname)
 f.plot(y='curr_dens',hue='cycle')
 
 f.set_area(0.489)
-f.plot(y='curr_dens',hue='cycle', cycles=[1])
-
-f.filter_cycle()
+f.plot(y='curr_dens',hue='cycle', cycles=[1,2])
 

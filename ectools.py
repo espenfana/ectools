@@ -27,8 +27,6 @@ class ecImporter():
         '''
         Parse and load the contents of a folder (not subfolders)
         '''
-        if fpath[-1] != '\\':
-            fpath += '\\' 
         flist = os.listdir(fpath)
         eclist = classes.ecList(fpath=fpath, **kwargs)
         for i, fname in enumerate(flist):
@@ -51,7 +49,7 @@ class ecImporter():
         it along to the correct file parser.
         '''
         try:
-            with open(fpath + fname) as f:
+            with open(os.path.join(fpath, fname)) as f:
                 row_1 = f.readline().strip()
                 if re.match('EC-Lab ASCII FILE', row_1): # File identified as EC-lab
                     container = parse_file_mpt(fname, fpath)
@@ -87,7 +85,7 @@ def parse_file_gamry(fname, fpath):
     '''Parse a Gamry formatted ascii file (such as .-DAT). Returns a custom electrochemistry container object '''
     meta_list = []
     try:
-        with open(fpath + fname) as f: # Open the file to read the first lines
+        with open(os.path.join(fpath, fname)) as f: # Open the file to read the first lines
             while line:=f.readline():
 
                 if line == "": # at EOF, readline() will return an empty string
@@ -153,7 +151,7 @@ def parse_file_mpt(fname, fpath):
     '''Parse an EC-lab ascii file. Returns a custom electrochemistry container object container object'''
     try:
         meta_list = []
-        with open(fpath + fname) as f: # Open the file to read the first lines
+        with open(os.path.join(fpath, fname)) as f: # Open the file to read the first lines
             meta_list.append(f.readline().strip()) # EC-Lab
             meta_list.append(f.readline().strip()) # Contains the number of lines in the metadata block
             head_row = int(re.findall(r'\d\d', meta_list[1])[0]) -1 # Header row
