@@ -141,7 +141,9 @@ def parse_file_gamry(fname, fpath):
         container.parse_meta_gamry()
 
         #container['realtime'] = np.array(container['time'], dtype=datetime) + container.starttime
-       
+        print(type(container.area))
+        container.curr_dens = np.divide(container.curr, container.area)
+        container.units['curr_dens'] = f'{container.units['curr']}/{container.units['area']}'
         return container         
     except Exception as E:
         print('ectools.parse_file_gamry error:')

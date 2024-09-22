@@ -102,11 +102,10 @@ class ElectroChemistry():
         
         date_str = self.meta_dict['DATE']['value']
         time_str = self.meta_dict['TIME']['value']
-        self.starttime = date_parser.parse(date_str + ' '+ time_str)
-
+        #TODO
     def makelab(self, axid):
         '''Generate an axis label with unit'''
-        d = {'curr': 'I ', 'pot': 'E ', 'time': 'time '}
+        d = {'curr': 'I ', 'pot': 'E ', 'time': 'time ', 'curr_dens': 'I\''}
         return d[axid] + '(' + self.units[axid] + ')'
 
     def plot(self,
@@ -171,3 +170,10 @@ class ElectroChemistry():
         ax_left.spines['left'].set_color(color_left)
         ax_right.spines['right'].set_color(color_right)
         return fig, (ax_left, ax_right)
+    
+    def set_area(self, new_area: float):
+        '''Set new value for area and recalculate current density
+            new_area [cm²]'''
+        self.area = new_area
+        self.curr_dens = self.curr / new_area
+        self.units['curr_dens'] = f'{self.units['curr']}/cm²'
