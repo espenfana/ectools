@@ -2,6 +2,7 @@
 from .. import ectools as ec
 
 from matplotlib import pyplot as plt
+import numpy as np
 import re
 import dateutil.parser as date_parser
 from datetime import datetime
@@ -30,14 +31,14 @@ class ElectroChemistry():
         for key, val in kwargs.items():
             setattr(self, key, val)
         # Empty arrays should help with intellisense and linting. Is there a better way?
-        self.time = ec.np.empty(0)
-        self.curr = ec.np.empty(0)
-        self.curr_dens = ec.np.empty(0)
-        self.pot = ec.np.empty(0)
+        self.time = np.empty(0)
+        self.curr = np.empty(0)
+        self.curr_dens = np.empty(0)
+        self.pot = np.empty(0)
         self.units = {}
         # These should remain empty in this class
-        #self.cycle = ec.np.empty(0)
-        #self.oxred = ec.np.empty(0)
+        #self.cycle = np.empty(0)
+        #self.oxred = np.empty(0)
     def __getitem__(self, key):
         '''Makes object subscriptable like a dict'''
         return self.__getattribute__(key)
@@ -97,7 +98,7 @@ class ElectroChemistry():
         for key, label in metamap.items():
             self[key] = float(self.meta_dict[label]['value'])
             try:
-                self.units[key] = ec.re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
+                self.units[key] = re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
             except:
                 pass
         
@@ -123,11 +124,11 @@ class ElectroChemistry():
         if not ax:
             _, ax = plt.subplots()
         if not clause:
-            clause = ec.np.full(self[x].shape, True)
+            clause = np.full(self[x].shape, True)
         if hue is True: # no hue set by technique
             hue = False
         if hue:
-            for val in ec.np.unique(self[hue][clause]):
+            for val in np.unique(self[hue][clause]):
                 ax.plot(
                     self[x][self[hue]==val], 
                     self[y][self[hue]==val], 
@@ -161,7 +162,7 @@ class ElectroChemistry():
         '''Plot data with two y-scales using matplotlib. 
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
         if not fig:
-            fig = ec.plt.figure()
+            fig = plt.figure()
         ax_left = fig.add_subplot(111)
         ax_left = self.plot(ax=ax_left, x=x, y=y_left, color=color_left, hue=hue, clause=clause, ax_kws=ax_left_kws, **kwargs)
         

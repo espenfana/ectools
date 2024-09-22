@@ -1,4 +1,4 @@
-from .ElectroChemistry import ElectroChemistry, ec
+from .ElectroChemistry import ElectroChemistry
 # ChronoAmperometry Class
 class ChronoAmperometry(ElectroChemistry):
     '''Chronoamperometry file container'''
