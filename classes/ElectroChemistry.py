@@ -5,7 +5,7 @@ from matplotlib import pyplot as plt
 import numpy as np
 import re
 import dateutil.parser as date_parser
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
@@ -104,7 +104,9 @@ class ElectroChemistry():
         
         date_str = self.meta_dict['DATE']['value']
         time_str = self.meta_dict['TIME']['value']
-        #TODO
+        self.starttime = date_parser.parse(date_str + ' ' + time_str)
+        timedeltas = np.array([timedelta(seconds=t) for t in self.time])
+        self.timestamps = np.array([self.starttime + delta for delta in timedeltas])
     def makelab(self, axid):
         '''Generate an axis label with unit'''
         d = {'curr': 'I ', 'pot': 'E ', 'time': 'time ', 'curr_dens': 'I\''}
