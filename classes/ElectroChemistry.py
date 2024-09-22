@@ -32,6 +32,7 @@ class ElectroChemistry():
         # Empty arrays should help with intellisense and linting. Is there a better way?
         self.time = ec.np.empty(0)
         self.curr = ec.np.empty(0)
+        self.curr_dens = ec.np.empty(0)
         self.pot = ec.np.empty(0)
         self.units = {}
         # These should remain empty in this class
@@ -173,7 +174,8 @@ class ElectroChemistry():
     
     def set_area(self, new_area: float):
         '''Set new value for area and recalculate current density
-            new_area [cm²]'''
+            new_area: float [cm²]'''
         self.area = new_area
         self.curr_dens = self.curr / new_area
-        self.units['curr_dens'] = f'{self.units['curr']}/cm²'
+        self.units['curr_dens'] = f'{self.units['curr']}/cm²'   
+

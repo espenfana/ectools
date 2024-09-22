@@ -1,4 +1,7 @@
-from .ElectroChemistry import ElectroChemistry, ec
+import numpy as np
+import re
+
+from .ElectroChemistry import ElectroChemistry
 # CyclicVoltammetry Class
 class CyclicVoltammetry(ElectroChemistry):
     '''Cyclic voltammetry file container'''
@@ -44,7 +47,7 @@ class CyclicVoltammetry(ElectroChemistry):
         metamap = {'scanrate': 'SCANRATE', 'pot_init': 'VINIT', 'pot_upper':'VLIMIT1', 'pot_lower':'VLIMIT2', 'pot_end':'VFINAL', 'ncycles': 'CYCLES'}
         for key, label in metamap.items():
             self[key] = float(self.meta_dict[label]['value'])
-            self.units[key] = ec.re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
+            self.units[key] = re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
         self.ncycles = int(self.ncycles)
         if self.pot_upper < self.pot_lower:
             tmp = self.pot_lower
@@ -62,11 +65,61 @@ class CyclicVoltammetry(ElectroChemistry):
     ax_kws={}, 
     **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        if hue is True:
+        if hue is True: #default hue
             hue = 'cycle'
         if cycles:
-            clause = ec.np.where(ec.np.logical_and(self['cycle']>=cycles[0],  self['cycle']<=cycles[1]))
+            clause = np.where(np.logical_and(self['cycle']>=cycles[0],  self['cycle']<=cycles[1]))
         ax = super().plot(ax=ax, x=x, y=y, clause=clause, hue=hue, ax_kws=ax_kws, **kwargs)
         if hue:
             ax.legend(title=hue)
         return ax
+
+    def filter_cycle(self, column: str, cycles: list | int | str) -> np.ndarray:
+        '''
+        Filter column based on a condition.
+        
+        column: Data column to filter
+        cycles:
+            int: Single cycle
+            list: List of cycles (in order)
+            str: Condition, e.g., '<10', '>5', '2:4', 'n:', ':n'
+        '''
+        if isinstance(cycles, int):
+            # Single cycle filtering
+            return self[column][self.cycle == cycles]
+        
+        if isinstance(cycles, list):
+            # List of cycles filtering
+            return self[column][np.isin(self.cycle, cycles)]
+        
+        if isinstance(cycles, str):
+            # Handling condition-based filtering with regular expressions
+            
+            # Match '<n'
+            if match := re.match(r'^<(\d+)$', cycles):
+                return self[column][self.cycle < int(match.group(1))]
+            
+            # Match '>n'
+            elif match := re.match(r'^>(\d+)$', cycles):
+                return self[column][self.cycle > int(match.group(1))]
+            
+            # Match 'n:m' range
+            elif match := re.match(r'^(\d+):(\d+)$', cycles):
+                lower, upper = int(match.group(1)), int(match.group(2))
+                return self[column][(self.cycle >= lower) & (self.cycle <= upper)]
+            
+            # Match 'n:' (from n to the end)
+            elif match := re.match(r'^(\d+):$', cycles):
+                lower = int(match.group(1))
+                return self[column][self.cycle >= lower]
+            
+            # Match ':n' (from the start to n)
+            elif match := re.match(r'^:(\d+)$', cycles):
+                upper = int(match.group(1))
+                return self[column][self.cycle <= upper]
+            
+            else:
+                raise ValueError(f"Invalid condition string: {cycles}")
+        
+        raise TypeError("cycles must be an int, list, or str")
+

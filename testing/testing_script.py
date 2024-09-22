@@ -17,6 +17,5 @@ f.plot(y='curr_dens',hue='cycle')
 f.set_area(0.489)
 f.plot(y='curr_dens',hue='cycle')
 
-
-
+f.filter_cycle()
 
