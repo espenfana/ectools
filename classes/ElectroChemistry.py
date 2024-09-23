@@ -180,5 +180,5 @@ class ElectroChemistry():
             new_area: float [cm²]'''
         self.area = new_area
         self.curr_dens = self.curr / new_area
-        self.units['curr_dens'] = f'{self.units['curr']}/cm²'   
+        self.units['curr_dens'] = f'{self.units["curr"]}/cm²'   
 
