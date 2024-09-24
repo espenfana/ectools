@@ -32,8 +32,8 @@ class EcImporter():
                 f = self.load_file(fpath, fname)
                 if f:
                     eclist.append(f)
-            except Exception as E:
-                print(E)
+            except Exception as error: # pylint: disable=broad-except
+                print(error)
             finally:
                 print(f'\rProcessing {i} of {len(flist)}' + '.'*(i%7+1), end='\r')
         print(f'Processed {len(flist)} files, parsed {len(eclist)}')
@@ -45,7 +45,7 @@ class EcImporter():
         then passes it along to the correct file parser.
         '''
         try:
-            with open(os.path.join(fpath, fname)) as f:
+            with open(os.path.join(fpath, fname), encoding='utf8') as f:
                 row_1 = f.readline().strip()
                 if re.match('EC-Lab ASCII FILE', row_1): # File identified as EC-lab
                     container = parse_file_mpt(fname, fpath)
@@ -61,11 +61,11 @@ class EcImporter():
                         container[key] = val
                 self.log.append('-S- ' + fpath + fname)
                 return container
-        except Exception as E:
+        except Exception as error: # pylint: disable=broad-except
             self.log.append('-F- ' +  fpath + fname)
             self.log.append('ecImporter.load_file error')
-            self.log.append(E)
-            raise E
+            self.log.append(error)
+            raise error
 
 def get_class(ident : str):
     '''Tries to match the identifier with the container classes available.'''
@@ -86,9 +86,8 @@ def parse_file_gamry(fname, fpath):
             # Open the file to read the first lines
             technique = None
             while line:=f.readline():
-
                 if line == "": # at EOF, readline() will return an empty string
-                    raise Exception('No TABLE detected')
+                    raise Exception('No TABLE detected') # pylint: disable=broad-except
                 line = line.rstrip().split('\t')
                 if 'TABLE' in line:
                     break
@@ -139,10 +138,10 @@ def parse_file_gamry(fname, fpath):
         if any(container.curr):
             container.curr_dens = np.divide(container.curr, container.area)
             container.units['curr_dens'] = f'{container.units["curr"]}/{container.units["area"]}'
-        return container         
-    except Exception as E:
+        return container
+    except Exception as error: # pylint: disable=broad-except
         print('ectools.parse_file_gamry error:')
-        raise E
+        raise error
 
 def parse_file_mpt(fname, fpath):
     '''Parse an EC-lab ascii file. 
@@ -195,6 +194,6 @@ def parse_file_mpt(fname, fpath):
         container.parse_meta_mpt()
 
         return container
-    except Exception as E:
+    except Exception as error:# pylint: disable=broad-except
         print('ectools.parse_mpt error:')
-        raise E
+        raise error
