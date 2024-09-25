@@ -38,6 +38,7 @@ class ElectroChemistry():
         self.curr_dens = np.empty(0)
         self.pot = np.empty(0)
         self.timestamps = np.empty(0)
+        self.timestamps = np.empty(0)
         self.units = {}
         # These should remain empty in this class
         #self.cycle = np.empty(0)
