@@ -1,19 +1,20 @@
+'''Linear sweep voltammetry container class'''
 import re
 
-from .ElectroChemistry import ElectroChemistry
+from .electrochemistry import ElectroChemistry
 
 class LinearSweepVoltammetry(ElectroChemistry):
     '''Linear sweep voltammetry file container'''
 
     # Class variables and constants
-    identifiers = {'Linear Sweep Voltammetry', 'LSV'} # Strings in the files to id the type
+    identifiers = {'Linear Sweep Voltammetry', 'LSV'} 
     get_columns = {**ElectroChemistry.get_columns,
         'oxred': (r'ox/red',),
         'cat': (r'cat', r'cathodic'),
         }
     # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
     # naming scheme. The values should be list-like to support multiple different regex identifiers,
-    # which are used in a re.match.    
+    # which are used in a re.match.
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
 
     # Initialize
@@ -45,7 +46,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
             self[key] = float(self.meta_dict[label]['value'])
             self.units[key] = re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
 
-    def plot(self, 
+    def plot(self,
             ax=None,
             x='pot',
             y='curr',
@@ -55,7 +56,15 @@ class LinearSweepVoltammetry(ElectroChemistry):
             ax_kws=None,
             **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        ax = super().plot(ax=ax, x=x, y=y, color=color, clause=clause, hue=hue, ax_kws=ax_kws, **kwargs)
+        ax = super().plot(
+            ax=ax,
+            x=x,
+            y=y,
+            color=color,
+            clause=clause,
+            hue=hue,
+            ax_kws=ax_kws,
+            **kwargs)
         if hue:
             ax.legend(title=hue)
         return ax
