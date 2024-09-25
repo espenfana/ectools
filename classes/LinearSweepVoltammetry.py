@@ -20,7 +20,6 @@ class LinearSweepVoltammetry(ElectroChemistry):
 
     def __init__(self, *args, **kwargs):
         '''Create a Linear Sweep Voltammetry container'''
-        print('lsv blah\n\n') #TODO testing
         self.scanrate = float()
         self.pot_init = float()
         self.pot_end = float()
