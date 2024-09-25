@@ -22,6 +22,7 @@ class CyclicVoltammetry(ElectroChemistry):
     def __init__(self, *args, **kwargs):
         '''Create a Cyclic Voltammetry container'''
         super().__init__(*args, **kwargs)
+        self.cycle = np.empty(0)
         
 
     # Class methods
@@ -69,7 +70,7 @@ class CyclicVoltammetry(ElectroChemistry):
             hue = 'cycle'
         if cycles:
             clause = np.where(np.logical_and(self['cycle']>=cycles[0],  self['cycle']<=cycles[1]))
-        ax = super().plot(ax=ax, x=x, y=y, clause=clause, hue=hue, ax_kws=ax_kws, **kwargs)
+        ax = super().plot(ax=ax, x=x, y=y, color=color, clause=clause, hue=hue, ax_kws=ax_kws, **kwargs)
         if hue:
             ax.legend(title=hue)
         return ax
