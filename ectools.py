@@ -72,8 +72,11 @@ def get_class(ident : str):
     if ident is None:
         return classes.ElectroChemistry
     for child in classes.ElectroChemistry.__subclasses__():
+        print(child, child.identifiers)
+        print(ident)
         for class_ident in child.identifiers:
             if re.match(class_ident, ident):
+                print(child) # TODO
                 return child
     return classes.ElectroChemistry # If no indentifier is matched, return ElectroChemistry class
 
@@ -87,7 +90,7 @@ def parse_file_gamry(fname, fpath):
             technique = None
             while line:=f.readline():
                 if line == "": # at EOF, readline() will return an empty string
-                    raise Exception('No TABLE detected') # pylint: disable=broad-except
+                    raise Exception('No TABLE detected') # pylint: disable=broad-raise
                 line = line.rstrip().split('\t')
                 if 'TABLE' in line:
                     break

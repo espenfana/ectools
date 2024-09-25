@@ -39,6 +39,8 @@ class ElectroChemistry():
         # These should remain empty in this class
         #self.cycle = np.empty(0)
         #self.oxred = np.empty(0)
+        self.area = float()
+        self.starttime = datetime
     def __getitem__(self, key):
         '''Makes object subscriptable like a dict'''
         return self.__getattribute__(key)
@@ -99,7 +101,7 @@ class ElectroChemistry():
             self[key] = float(self.meta_dict[label]['value'])
             try:
                 self.units[key] = re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
-            except:
+            except Exception:
                 pass
         
         date_str = self.meta_dict['DATE']['value']
@@ -119,7 +121,7 @@ class ElectroChemistry():
         color = 'tab:blue', # color
         hue = None, # split the plot based on values in a third array
         clause = None, # logical array to slice the arrays
-        ax_kws = {}, # arguments passed to ax.set()
+        ax_kws = None, # arguments passed to ax.set()
         **kwargs):
         '''Plot data using matplotlib. 
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
@@ -142,7 +144,7 @@ class ElectroChemistry():
                 self[y][clause], 
                 color = color,
                 **kwargs)
-        if not 'xlabel' in ax_kws:
+        if not 'xlabel' not in ax_kws:
             ax_kws['xlabel'] = self.makelab(x)
         if not 'ylabel' in ax_kws:
             ax_kws['ylabel'] = self.makelab(y)
@@ -158,8 +160,8 @@ class ElectroChemistry():
             color_right = 'tab:red', # color for right y-axis
             hue = None, # split the plot based on values in a third array
             clause = None, # logical array to slice the arrays
-            ax_left_kws = {}, # arguments passed to ax.set()
-            ax_right_kws = {}, # arguments passed to ax.set()
+            ax_left_kws = None, # arguments passed to ax.set()
+            ax_right_kws = None, # arguments passed to ax.set()
             **kwargs):
         '''Plot data with two y-scales using matplotlib. 
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''

@@ -22,10 +22,19 @@ class ChronoAmperometry(ElectroChemistry):
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
 
-    def plot(self,x='time', y='curr', ax=None, clause=None, hue=None, **kwargs):
+    def plot(self,
+            ax=None,
+            x='time',
+            y='curr',
+            color = 'tab:blue', # color
+            hue=None,
+            clause=None,
+            ax_kws = None,
+            **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        kws = {'xlabel': f'time ({self.units[x]})',
-                'ylabel': f'I ({self.units[y]})'}
-        ax = super().plot(ax=ax, x=x, y=y, clause=clause, hue=hue, ax_kws = kws, **kwargs)
+        if not ax_kws:
+            ax_kws = {'xlabel': f'time ({self.units[x]})',
+                      'ylabel': f'I ({self.units[y]})'}
+        ax = super().plot(ax=ax, x=x, y=y, clause=clause, hue=hue, ax_kws = ax_kws, **kwargs)
         if hue:
             ax.legend(title=hue)
