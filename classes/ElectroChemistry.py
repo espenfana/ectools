@@ -13,15 +13,18 @@ class ElectroChemistry():
 
     # Class variables and constants
     identifiers = set()
-    get_columns = { # Data columns to be imported. Keys will become instance attributes so must adhere to a strict naming scheme. The values should be list-like to support multiple different regex identifiers, which are used in a re.search. 
+
+    # Data columns to be imported. Keys will become instance attributes so must adhere to a strict 
+    # naming scheme. The values should be list-like to support multiple different regex identifiers, 
+    # which are used in a re.search. 
+    get_columns = {
         'redherring': (r'redherring',), # An identifier which is not found will not generate errors
         'signal': (r'Sig',), # Signal, i.e. target potenital
         'time': (r'time/(.?s)',r'^T$',), # Time column
         'pot': (r'<?Ewe>?/(.?V)', r'potential', r'^Vf$',), # Potential column
         'curr':(r'<?I>?/(.?A)', r'^Im$')} # Current column
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
-    
-    
+
     # Initialize
     def __init__(self, fname, fpath, meta, **kwargs):
         ''' Create a generalized ElecroChemistry object'''
@@ -35,6 +38,7 @@ class ElectroChemistry():
         self.curr = np.empty(0)
         self.curr_dens = np.empty(0)
         self.pot = np.empty(0)
+        self.timestamps = np.empty(0)
         self.units = {}
         # These should remain empty in this class
         #self.cycle = np.empty(0)
@@ -95,7 +99,7 @@ class ElectroChemistry():
                             'description': ', '.join(line[3:])
                         }
             i += 1
-        # Import into attributes         
+        # Import into attributes
         metamap = {'area': 'AREA'}
         for key, label in metamap.items():
             self[key] = float(self.meta_dict[label]['value'])
@@ -125,6 +129,7 @@ class ElectroChemistry():
         **kwargs):
         '''Plot data using matplotlib. 
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
+        ax_kws = ax_kws or {}
         if not ax:
             _, ax = plt.subplots()
         if not clause:

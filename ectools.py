@@ -72,11 +72,8 @@ def get_class(ident : str):
     if ident is None:
         return classes.ElectroChemistry
     for child in classes.ElectroChemistry.__subclasses__():
-        print(child, child.identifiers)
-        print(ident)
         for class_ident in child.identifiers:
             if re.match(class_ident, ident):
-                print(child) # TODO
                 return child
     return classes.ElectroChemistry # If no indentifier is matched, return ElectroChemistry class
 
