@@ -5,3 +5,4 @@ from .CyclicVoltammetry import CyclicVoltammetry
 from .ChronoAmperometry import ChronoAmperometry
 from .ChronoPotentiometry import ChronoPotentiometry
 from .OpenCircuit import OpenCircuit
+from .LinearSweepVoltammetry import LinearSweepVoltammetry

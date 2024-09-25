@@ -1,28 +1,30 @@
-import numpy as np
 import re
 
 from .ElectroChemistry import ElectroChemistry
-# CyclicVoltammetry Class
-class CyclicVoltammetry(ElectroChemistry):
-    '''Cyclic voltammetry file container'''
+
+class LinearSweepVoltammetry(ElectroChemistry):
+    '''Linear sweep voltammetry file container'''
 
     # Class variables and constants
-    identifiers = {'Cyclic Voltammetry', 'CV'} # Strings in the raw files which indicate the technique
+    identifiers = {'Linear Sweep Voltammetry', 'LSV'} # Strings in the files to id the type
     get_columns = {**ElectroChemistry.get_columns,
         'oxred': (r'ox/red',),
         'cat': (r'cat', r'cathodic'),
-        'cycle': (r'cycle number', r'cycle'),
         }
-    # Data columns to be imported. Keys will become instance attributes so must adhere to a strict naming scheme. The values should be list-like to support multiple different regex identifiers, which are used in a re.match.    
+    # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
+    # naming scheme. The values should be list-like to support multiple different regex identifiers,
+    # which are used in a re.match.    
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
-    
-    
+
     # Initialize
 
     def __init__(self, *args, **kwargs):
-        '''Create a Cyclic Voltammetry container'''
+        '''Create a Linear Sweep Voltammetry container'''
+        print('lsv blah\n\n') #TODO testing
+        self.scanrate = float()
+        self.pot_init = float()
+        self.pot_end = float()
         super().__init__(*args, **kwargs)
-        
 
     # Class methods
     def parse_meta_mpt(self):
@@ -45,19 +47,16 @@ class CyclicVoltammetry(ElectroChemistry):
             self.units[key] = re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
 
     def plot(self, 
-    ax=None, 
-    x='pot', 
-    y='curr', 
-    color='tab:blue', 
-    clause=None, 
-    hue=None, 
-    ax_kws={}, 
-    **kwargs):
+            ax=None,
+            x='pot',
+            y='curr',
+            color='tab:blue',
+            hue=None,
+            clause=None,
+            ax_kws=None,
+            **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        ax = super().plot(ax=ax, x=x, y=y, clause=clause, hue=hue, ax_kws=ax_kws, **kwargs)
+        ax = super().plot(ax=ax, x=x, y=y, color=color, clause=clause, hue=hue, ax_kws=ax_kws, **kwargs)
         if hue:
             ax.legend(title=hue)
         return ax
-
-
-
