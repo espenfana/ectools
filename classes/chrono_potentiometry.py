@@ -18,16 +18,21 @@ class ChronoPotentiometry(ElectroChemistry):
     def __init__(self, *args, **kwargs):
         '''Create a Chronoamperometry file container'''
         super().__init__(*args, **kwargs)
+        self.time_step = float()
+        self.curr_step = float()
+
 
     # Class methods
     def parse_meta_mpt(self):
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
-        self.dummy = 'dummy'
+        self.curr_step = 'NotImplemented'
 
     def parse_meta_gamry(self):
         '''Parse the metadata list into attributes'''
         super().parse_meta_gamry()
+        self.time_step = float()
+        self.curr_step = float()
 
     def plot(self,
              x='time',

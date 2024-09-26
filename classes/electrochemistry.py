@@ -40,9 +40,11 @@ class ElectroChemistry():
         self.timestamps = np.empty(0)
         self.timestamps = np.empty(0)
         self.units = {}
+        self.meta_dict = {}
         # These should remain empty in this class
         #self.cycle = np.empty(0)
         #self.oxred = np.empty(0)
+
         self.area = float()
         self.starttime = datetime
     def __getitem__(self, key):
@@ -58,13 +60,13 @@ class ElectroChemistry():
     def parse_meta_mpt(self):
         '''Parse attributes from the metadata block'''
         #self.colon_delimited = [row.split(':') for row in self.meta]
-        self.colonsep = {} # For colon sepatated metadata
+        colonsep = {} # For colon sepatated metadata
         wsep = [] # For width separated metadata, which may include
         # 20 pt splitter and stripper
         split20 = lambda s: [s.strip()] if len(s) < 20 else [s[:20].strip(), *split20(s[20:])] 
         for row in self.meta:
             if (':' in row) and (row[18:20] != '  '):
-                self.colonsep[row.split(':', 1)[0].strip()] = row.split(':', 1)[1].strip()
+                colonsep[row.split(':', 1)[0].strip()] = row.split(':', 1)[1].strip()
             elif (len(row)>20) and (row[18:20] == '  '):
                 if re.match(r'vs\.', row):
                     wsep[-1].append(split20(row[20:]))
@@ -74,11 +76,12 @@ class ElectroChemistry():
                         wsep.append([row[:m.start(0)].strip(), split20(row[20:]), m.group(1)])
                     else:
                         wsep.append([row[:20].strip(), split20(row[20:])])
-        self.widthsep = {row[0]: row[1:] for row in wsep} # If the experiment was modified during run, the last value will be entered
-        
-        self.starttime = date_parser.parse(self.colonsep['Acquisition started on'])
+        widthsep = {row[0]: row[1:] for row in wsep} # If the experiment was modified during run, the last value will be entered
+        self.meta_dict = {**colonsep, **widthsep}
+        self.starttime = date_parser.parse(self.meta_dict['Acquisition started on'])
 
     def parse_meta_gamry(self):
+        '''parse attribudes from the metadata block'''
         self.meta_dict = {}
         i = 0
         while i < len(self.meta):
