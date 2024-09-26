@@ -1,15 +1,14 @@
-# Parent electrochemistry file class
+'''Parent electrochemistry file class'''
 import re
-import dateutil.parser as date_parser
 from datetime import datetime, timedelta
 
+import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
 import numpy as np
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
     '''
-
     # Class variables and constants
     identifiers = set()
 
@@ -62,21 +61,24 @@ class ElectroChemistry():
         #self.colon_delimited = [row.split(':') for row in self.meta]
         colonsep = {} # For colon sepatated metadata
         wsep = [] # For width separated metadata, which may include
-        # 20 pt splitter and stripper
-        split20 = lambda s: [s.strip()] if len(s) < 20 else [s[:20].strip(), *split20(s[20:])] 
+        # 20 pt splitter and stripper replaced by function split_by_length
+        #split20 = lambda s: [s.strip()] if len(s) < 20 else [s[:20].strip(), *split20(s[20:])]
         for row in self.meta:
             if (':' in row) and (row[18:20] != '  '):
                 colonsep[row.split(':', 1)[0].strip()] = row.split(':', 1)[1].strip()
             elif (len(row)>20) and (row[18:20] == '  '):
                 if re.match(r'vs\.', row):
-                    wsep[-1].append(split20(row[20:]))
+                    wsep[-1].append(split_by_length(row[20:]))
                 else:
                     m = re.search(r'\((.?\w)\)', row[:20]) # look for units in parenthesis
                     if m:
-                        wsep.append([row[:m.start(0)].strip(), split20(row[20:]), m.group(1)])
+                        wsep.append([row[:m.start(0)].strip(),
+                                     split_by_length(row[20:]), m.group(1)])
                     else:
-                        wsep.append([row[:20].strip(), split20(row[20:])])
-        widthsep = {row[0]: row[1:] for row in wsep} # If the experiment was modified during run, the last value will be entered
+                        wsep.append([row[:20].strip(), 
+                                     split_by_length(row[20:])])
+        # If the experiment was modified during run, the last value will be entered
+        widthsep = {row[0]: row[1:] for row in wsep}
         self.meta_dict = {**colonsep, **widthsep}
         self.starttime = date_parser.parse(self.meta_dict['Acquisition started on'])
 
@@ -87,7 +89,7 @@ class ElectroChemistry():
         while i < len(self.meta):
             line = self.meta[i]
             match len(line):
-                case 2: 
+                case 2:
                     self.meta_dict[line[0]] = {'value': line[1]}
                 case 4 | 5:
                     if line[0] == 'NOTES': # handle the multi-line note field
@@ -108,10 +110,11 @@ class ElectroChemistry():
         for key, label in metamap.items():
             self[key] = float(self.meta_dict[label]['value'])
             try:
-                self.units[key] = re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
+                self.units[key] = re.search(r'\((.*?)\)',
+                                            self.meta_dict[label]['description']).group(1)
             except Exception:
                 pass
-        
+
         date_str = self.meta_dict['DATE']['value']
         time_str = self.meta_dict['TIME']['value']
         self.starttime = date_parser.parse(date_str + ' ' + time_str)
@@ -131,7 +134,7 @@ class ElectroChemistry():
         clause = None, # logical array to slice the arrays
         ax_kws = None, # arguments passed to ax.set()
         **kwargs):
-        '''Plot data using matplotlib. 
+        '''Plot data using matplotlib.
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
         ax_kws = ax_kws or {}
         if not ax:
@@ -143,14 +146,14 @@ class ElectroChemistry():
         if hue:
             for val in np.unique(self[hue][clause]):
                 ax.plot(
-                    self[x][self[hue]==val], 
-                    self[y][self[hue]==val], 
+                    self[x][self[hue]==val],
+                    self[y][self[hue]==val],
                     label = str(val),
                      **kwargs)
         else:
             ax.plot(
-                self[x][clause], 
-                self[y][clause], 
+                self[x][clause],
+                self[y][clause],
                 color = color,
                 **kwargs)
         if 'xlabel' not in ax_kws:
@@ -159,7 +162,7 @@ class ElectroChemistry():
             ax_kws['ylabel'] = self.makelab(y)
         ax.set(**ax_kws) # Set axes properties, such as xlabel etc.
         return ax
-        
+
     def plotyy(self,
             fig = None,
             x = 'time', # key for the common x-axis
@@ -177,19 +180,49 @@ class ElectroChemistry():
         if not fig:
             fig = plt.figure()
         ax_left = fig.add_subplot(111)
-        ax_left = self.plot(ax=ax_left, x=x, y=y_left, color=color_left, hue=hue, clause=clause, ax_kws=ax_left_kws, **kwargs)
-        
+        ax_left = self.plot(ax=ax_left,
+                            x=x,
+                            y=y_left,
+                            color=color_left,
+                            hue=hue,
+                            clause=clause,
+                            ax_kws=ax_left_kws,
+                            **kwargs)
+
         ax_right = ax_left.twinx()
-        ax_right = self.plot(ax=ax_right, x=x, y=y_right, color=color_right, hue=hue, clause=clause, ax_kws=ax_right_kws, **kwargs)
-        
+        ax_right = self.plot(ax=ax_right,
+                             x=x,
+                             y=y_right,
+                             color=color_right,
+                             hue=hue,
+                             clause=clause,
+                             ax_kws=ax_right_kws,
+                             **kwargs)
+
         ax_left.spines['left'].set_color(color_left)
         ax_right.spines['right'].set_color(color_right)
         return fig, (ax_left, ax_right)
-    
+
     def set_area(self, new_area: float):
         '''Set new value for area and recalculate current density
             new_area: float [cm²]'''
         self.area = new_area
         self.curr_dens = self.curr / new_area
-        self.units['curr_dens'] = f'{self.units["curr"]}/cm²'   
+        self.units['curr_dens'] = f'{self.units["curr"]}/cm²'
 
+def split_by_length(s, length=20):
+    """
+    Splits the input string `s` into chunks of `length`, stripping whitespace from each chunk.
+    
+    Parameters:
+    - s: The input string to be split.
+    - length: The length of each chunk (default is 20).
+    
+    Returns:
+    - A list of stripped chunks of the input string.
+    """
+    result = []
+    while s:
+        result.append(s[:length].strip())
+        s = s[length:]
+    return result

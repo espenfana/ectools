@@ -21,7 +21,6 @@ class ChronoPotentiometry(ElectroChemistry):
         self.time_step = float()
         self.curr_step = float()
 
-
     # Class methods
     def parse_meta_mpt(self):
         '''Parse the metadata blocks into attributes'''

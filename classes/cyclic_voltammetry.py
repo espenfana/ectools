@@ -36,17 +36,17 @@ class CyclicVoltammetry(ElectroChemistry):
     def parse_meta_mpt(self):
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
-        self.scanrate = float(self.widthsep['dE/dt'][0][0])
-        self.units['scanrate'] = self.widthsep['dE/dt unit'][0]
-        self.pot_init = float(self.widthsep['Ei'][0][0])
-        self.units['pot_init'] = self.widthsep['Ei'][1]
-        self.pot_upper = float(self.widthsep['E1'][0][0])
-        self.units['pot_upper'] = self.widthsep['E1'][1]
-        self.pot_lower = float(self.widthsep['E2'][0][0])
-        self.units['pot_lower'] = self.widthsep['E2'][1]
-        self.pot_end = float(self.widthsep['Ef'][0][0])
-        self.units['pot_end'] = self.widthsep['Ef'][1]
-        self.ncycles = int(self.widthsep['nc cycles'][0][0])
+        self.scanrate = float(self.meta_dict['dE/dt'][0][0])
+        self.units['scanrate'] = self.meta_dict['dE/dt unit'][0]
+        self.pot_init = float(self.meta_dict['Ei'][0][0])
+        self.units['pot_init'] = self.meta_dict['Ei'][1]
+        self.pot_upper = float(self.meta_dict['E1'][0][0])
+        self.units['pot_upper'] = self.meta_dict['E1'][1]
+        self.pot_lower = float(self.meta_dict['E2'][0][0])
+        self.units['pot_lower'] = self.meta_dict['E2'][1]
+        self.pot_end = float(self.meta_dict['Ef'][0][0])
+        self.units['pot_end'] = self.meta_dict['Ef'][1]
+        self.ncycles = int(self.meta_dict['nc cycles'][0][0])
 
     def parse_meta_gamry(self):
         '''Parse the metadata list into attributes'''

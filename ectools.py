@@ -21,12 +21,12 @@ class EcImporter():
         for key, val in kwargs:
             setattr(self, key, val)
 
-    def load_folder(self, fpath : str, **kwargs) -> classes.ecList:
+    def load_folder(self, fpath : str, **kwargs) -> classes.EcList:
         '''
         Parse and load the contents of a folder (not subfolders)
         '''
         flist = os.listdir(fpath)
-        eclist = classes.ecList(fpath=fpath, **kwargs)
+        eclist = classes.EcList(fpath=fpath, **kwargs)
         for i, fname in enumerate(flist):
             try:
                 f = self.load_file(fpath, fname)

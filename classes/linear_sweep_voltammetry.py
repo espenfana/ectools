@@ -30,12 +30,12 @@ class LinearSweepVoltammetry(ElectroChemistry):
     def parse_meta_mpt(self):
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
-        self.scanrate = float(self.widthsep['dE/dt'][0][0])
-        self.units['scanrate'] = self.widthsep['dE/dt unit'][0]
-        self.pot_init = float(self.widthsep['Ei'][0][0])
-        self.units['pot_init'] = self.widthsep['Ei'][1]
-        self.pot_end = float(self.widthsep['Ef'][0][0])
-        self.units['pot_end'] = self.widthsep['Ef'][1]
+        self.scanrate = float(self.meta_dict['dE/dt'][0][0])
+        self.units['scanrate'] = self.meta_dict['dE/dt unit'][0]
+        self.pot_init = float(self.meta_dict['Ei'][0][0])
+        self.units['pot_init'] = self.meta_dict['Ei'][1]
+        self.pot_end = float(self.meta_dict['Ef'][0][0])
+        self.units['pot_end'] = self.meta_dict['Ef'][1]
 
     def parse_meta_gamry(self):
         '''Parse the metadata list into attributes'''
