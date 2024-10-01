@@ -6,6 +6,8 @@ import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
 import numpy as np
 
+import ectools as ec
+
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
     '''
@@ -46,6 +48,8 @@ class ElectroChemistry():
 
         self.area = float()
         self.starttime = datetime
+        self.label = None
+        self._bokeh_tooltips = None
     def __getitem__(self, key):
         '''Makes object subscriptable like a dict'''
         return self.__getattribute__(key)
@@ -68,15 +72,15 @@ class ElectroChemistry():
                 colonsep[row.split(':', 1)[0].strip()] = row.split(':', 1)[1].strip()
             elif (len(row)>20) and (row[18:20] == '  '):
                 if re.match(r'vs\.', row):
-                    wsep[-1].append(split_by_length(row[20:]))
+                    wsep[-1].append(_split_by_length(row[20:]))
                 else:
                     m = re.search(r'\((.?\w)\)', row[:20]) # look for units in parenthesis
                     if m:
                         wsep.append([row[:m.start(0)].strip(),
-                                     split_by_length(row[20:]), m.group(1)])
+                                     _split_by_length(row[20:]), m.group(1)])
                     else:
                         wsep.append([row[:20].strip(), 
-                                     split_by_length(row[20:])])
+                                     _split_by_length(row[20:])])
         # If the experiment was modified during run, the last value will be entered
         widthsep = {row[0]: row[1:] for row in wsep}
         self.meta_dict = {**colonsep, **widthsep}
@@ -120,10 +124,31 @@ class ElectroChemistry():
         self.starttime = date_parser.parse(date_str + ' ' + time_str)
         timedeltas = np.array([timedelta(seconds=t) for t in self.time])
         self.timestamps = np.array([self.starttime + delta for delta in timedeltas])
+    
     def makelab(self, axid):
         '''Generate an axis label with unit'''
         d = {'curr': 'I ', 'pot': 'E ', 'time': 'time ', 'curr_dens': 'I\''}
         return d[axid] + '(' + self.units[axid] + ')'
+
+    def plot_bokeh(self): #TODO further work
+        """Plot using Bokeh with global settings."""
+        if not ec.BOKEH_AVAILABLE:
+            raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
+        
+        from bokeh.plotting import figure, show
+
+        # Generate default tooltips if none are set
+        #ec.bokeh.generate_default_tooltips(self.data.keys())
+
+        # Use Bokeh settings for figure size, title, and tooltips
+        p = figure(
+            width=ec.bokeh.figsize[0],  # Use the configured figure size
+            height=ec.bokeh.figsize[1],
+            title=ec.bokeh.title,
+        )
+        p.add_tools(ec.bokeh.hover)
+        p.line(self.time, self.curr)
+        show(p)
 
     def plot(self,
         ax=None, # pyplot axes
@@ -210,7 +235,7 @@ class ElectroChemistry():
         self.curr_dens = self.curr / new_area
         self.units['curr_dens'] = f'{self.units["curr"]}/cm²'
 
-def split_by_length(s, length=20):
+def _split_by_length(s, length=20):
     """
     Splits the input string `s` into chunks of `length`, stripping whitespace from each chunk.
     
