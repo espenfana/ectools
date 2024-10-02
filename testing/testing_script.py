@@ -20,3 +20,6 @@ f.plot_bokeh()
 
 f.set_area(0.489)
 #f.plot(y='curr_dens',hue='cycle', cycles=[1,2])
+
+fl = imp.load_folder(FPATH)
+f

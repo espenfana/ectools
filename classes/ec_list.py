@@ -42,57 +42,43 @@ class EcList(list):
             ]
         return describe_df.to_string(index=False)
 
-    def select(self, fids=None, **kwargs) -> 'EcList':
+    def select(self, fids: list = None, **kwargs) -> 'EcList':
         """
-        Select files based on a list of file IDs and/or attribute key-value pairs.
+        Select files based on a list of file IDs (fids) OR matching any attribute key-value pair.
+        Files are selected if they match any of the file IDs or any of the key-value pairs.
 
         Args:
-            fids (str or list, optional): A single file ID or a list of file IDs.
+            fids : A list of file IDs (fids).
             kwargs: Key-value pairs to filter by file attributes.
 
         Returns:
             EcList: A new instance of EcList containing the selected files.
         """
-        # Normalize and ensure fids is a list, even if a single string is passed
+        selected_idx = set()
+
+        # Handle file ID (fid) filtering using the 'fid' attribute of each file
         if fids:
-            if isinstance(fids, str):
-                fids = [fids]
-            fids = [self._normalize_fid(fid) for fid in fids]  # Normalize all fids
+            fids = [fid.lower().lstrip('0') for fid in fids]  # Normalize fids
+            for idx, file in enumerate(self):
+                file_fid = getattr(file, 'fid', None)  # Handle missing 'fid' gracefully
+                if file_fid and file_fid in fids:
+                    selected_idx.add(idx)
 
-        # Start by selecting files based on normalized fids
-        if fids:
-            # Get the indices of files that match the fids
-            indices = [self._fid_idx[fid] for fid in fids if fid in self._fid_idx]
-        else:
-            # If no fids are provided, start with all files
-            indices = list(range(len(self)))
+        # Handle attribute key-value pair filtering (match any key-value pair)
+        if kwargs:
+            for idx, file in enumerate(self):
+                for key, value in kwargs.items():
+                    if getattr(file, key, None) == value:
+                        selected_idx.add(idx)
+                        break  # If one key-value pair matches, add file and break
 
-        # Filter further by the provided key-value pairs
-        selected_files = []
-        for idx in indices:
-            file = self[idx]
-            match = True
-            for key, value in kwargs.items():
-                if getattr(file, key, None) != value:
-                    match = False
-                    break
-            if match:
-                selected_files.append(file)
+        if not selected_idx:
+            raise ValueError(f"No files found matching the provided criteria: {kwargs or fids}")
 
-        if not selected_files:
-            raise ValueError(f"No files found matching the provided criteria: {kwargs} and fids: {fids}")
-
-        # Return a new EcList instance with the selected files
-        new_list = EcList(fpath=self.fpath)
-        new_list.extend(selected_files)
-        return new_list
-
-    def select_file(self, fid: str) -> ElectroChemistry:
-        """Select a single file based on its unique file ID (fid)."""
-        if fid in self._fid_idx:
-            return self[self._fid_idx[fid]]
-        else:
-            raise ValueError(f"File ID '{fid}' not found in the list.")
+        # Create a new EcList instance with the selected files
+        selected_files = EcList(fpath=self.fpath)
+        selected_files.extend(self[i] for i in selected_idx)
+        return selected_files
 
     def _generate_fid_idx(self):
         """Generates a dictionary mapping normalized file ID to index."""
