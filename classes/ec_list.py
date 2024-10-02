@@ -42,18 +42,74 @@ class EcList(list):
             ]
         return describe_df.to_string(index=False)
 
-    def generate_fid_idx(self):
-        '''Runs once to generate fid to index dict'''
+    def select(self, fids=None, **kwargs) -> 'EcList':
+        """
+        Select files based on a list of file IDs and/or attribute key-value pairs.
+
+        Args:
+            fids (str or list, optional): A single file ID or a list of file IDs.
+            kwargs: Key-value pairs to filter by file attributes.
+
+        Returns:
+            EcList: A new instance of EcList containing the selected files.
+        """
+        # Normalize and ensure fids is a list, even if a single string is passed
+        if fids:
+            if isinstance(fids, str):
+                fids = [fids]
+            fids = [self._normalize_fid(fid) for fid in fids]  # Normalize all fids
+
+        # Start by selecting files based on normalized fids
+        if fids:
+            # Get the indices of files that match the fids
+            indices = [self._fid_idx[fid] for fid in fids if fid in self._fid_idx]
+        else:
+            # If no fids are provided, start with all files
+            indices = list(range(len(self)))
+
+        # Filter further by the provided key-value pairs
+        selected_files = []
+        for idx in indices:
+            file = self[idx]
+            match = True
+            for key, value in kwargs.items():
+                if getattr(file, key, None) != value:
+                    match = False
+                    break
+            if match:
+                selected_files.append(file)
+
+        if not selected_files:
+            raise ValueError(f"No files found matching the provided criteria: {kwargs} and fids: {fids}")
+
+        # Return a new EcList instance with the selected files
+        new_list = EcList(fpath=self.fpath)
+        new_list.extend(selected_files)
+        return new_list
+
+    def select_file(self, fid: str) -> ElectroChemistry:
+        """Select a single file based on its unique file ID (fid)."""
+        if fid in self._fid_idx:
+            return self[self._fid_idx[fid]]
+        else:
+            raise ValueError(f"File ID '{fid}' not found in the list.")
+
+    def _generate_fid_idx(self):
+        """Generates a dictionary mapping normalized file ID to index."""
         for i, f in enumerate(self):
-            if f.id_number:
-                if f.id_letter:
-                    self._fid_idx[str(f.id_number) + str(f.id_letter)] = i
-                else:
-                    self._fid_idx[str(f.id_number)] = i
+            id_number = getattr(f, 'id_number', None)
+            id_letter = getattr(f, 'id_letter', '') or ''  # Ensure id_letter is a string
+            id_letter = id_letter.lower()  # Normalize letter case
+            if id_number:
+                key = self._normalize_fid(str(id_number) + id_letter)
+                self._fid_idx[key] = i
+
+    def _normalize_fid(self, fid):
+        """Normalize the file ID by removing leading zeroes and converting to lowercase."""
+        return fid.lstrip('0').lower()
 
     def fid(self, fid:str) -> ElectroChemistry:
         '''Return file based on file id (number + letter) (must be parsed from e.g. filename)'''
         if fid in self._fid_idx:
             return self[self._fid_idx[fid]]
-        else:
-            raise ValueError(f"File ID '{fid}' not found in the list.")
+        raise ValueError(f"File ID '{fid}' not found in the list.")
