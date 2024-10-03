@@ -1,7 +1,11 @@
 # ectools/bokeh_settings.py
 from bokeh.plotting import figure, ColumnDataSource
 from bokeh.models import HoverTool
-from bokeh.io import output_notebook
+from bokeh.io import output_notebook, output_file
+
+
+NOTEBOOK = 'notebook'
+FILE = 'file'
 
 class BokehSettings:
     """Class to handle Bokeh-specific plotting settings."""
@@ -11,8 +15,13 @@ class BokehSettings:
         self.tooltips = None        # Default tooltips
         self.title = "Bokeh Plot"   # Default plot title
         self.hover = None
-
-    def set(self, figsize=None, tooltips=None, title=None):
+        self.output = NOTEBOOK
+        
+    def set(self, 
+            figsize=None, 
+            tooltips=None, 
+            title=None, 
+            output=None):
         """Set Bokeh-specific plot settings."""
         if figsize:
             self.figsize = figsize
@@ -20,12 +29,18 @@ class BokehSettings:
             self.tooltips = tooltips
         if title:
             self.title = title
+        if output:
+            if output in [NOTEBOOK, FILE]:
+                self.output = output
+            else:
+                raise ValueError(f'Output method {output} not recognized')
 
     def get(self, setting):
         """Retrieve a specific Bokeh setting."""
         return getattr(self, setting, None)
 
     def set_tooltips(self):
+        '''create hover object and set properties'''
         self.hover = HoverTool()
         self.hover.tooltips = [
         ('E (V)', '@pot'),
@@ -35,7 +50,7 @@ class BokehSettings:
         ('cycle', '@cycle')
         ]
         self.hover.formatters={'@timestamps': 'datetime'}
+
 # Create a global instance of BokehSettings
 bokeh = BokehSettings()
 bokeh.set_tooltips()
-output_notebook()

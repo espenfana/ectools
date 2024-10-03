@@ -13,16 +13,17 @@ def filename_parser(_, fname: str) -> dict:
             mcl_number: int"""
     out = {}
     try:
-        value_after_date = re.search(r'\d{6}_([0-9]+)([A-Za-z]?)_', fname)
+        value_id = re.search(r'\d{6}_([0-9]+)([A-Za-z]+?)_', fname)
+        value_id_full = re.search(r'(\d{6}_[0-9]+[A-Za-z]+?)_', fname)
         value_we_number = re.search(r'WE(\d+)', fname)
         value_temperature = re.search(r'_(\d+)C\.DTA', fname)
         mcl_number = re.search(r'_MCL(\d+)', fname)
 
-        if value_after_date:
-            out['id_number'] = int(value_after_date.group(1))
-            out['id_letter'] = str(value_after_date.group(2)).lower() if value_after_date.group(2) else ''
+        if value_id:
+            out['id_number'] = int(value_id.group(1))
+            out['id_letter'] = str(value_id.group(2)).lower() if value_id.group(2) else ''
             out['fid'] = str(out['id_number']) + out['id_letter']
-
+        out['id_full'] = str(value_id_full.group(1))
         out['we_number'] = int(value_we_number.group(1)) if value_we_number else None
         out['temperature'] = int(value_temperature.group(1)) if value_temperature else None
         out['mcl_number'] = int(mcl_number.group(1)) if mcl_number else None
