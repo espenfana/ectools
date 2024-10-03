@@ -76,9 +76,10 @@ class EcList(list):
             raise ValueError(f"No files found matching the provided criteria: {kwargs or fids}")
 
         # Create a new EcList instance with the selected files
-        selected_files = EcList(fpath=self.fpath)
-        selected_files.extend(self[i] for i in selected_idx)
-        return selected_files
+        selected_files = sorted([self[i] for i in selected_idx], key=lambda f: f.fname, reverse=False)
+        eclist_out = EcList(fpath=self.fpath)
+        eclist_out.extend(selected_files)
+        return eclist_out
 
     def _generate_fid_idx(self):
         """Generates a dictionary mapping normalized file ID to index."""

@@ -8,12 +8,14 @@
 #from matplotlib import pyplot as plt
 
 import ectools as ec
+from ectools.helper_functions import filename_parser
 ec.set_config('plot_backend', ec.Plotter.BOKEH)
 
 FPATH = 'data/'
 FNAME = '240912_01_MCL16_CSWWE1_LSV100-INIT_CO2_750C.DTA'
 
-imp = ec.EcImporter()
+
+imp = ec.EcImporter(fname_parser=filename_parser)
 f = imp.load_file(FPATH, FNAME)
 
 f.plot_bokeh()
