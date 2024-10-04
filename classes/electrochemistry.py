@@ -41,7 +41,7 @@ class ElectroChemistry():
         self.timestamps = np.empty(0)
         self.timestamps = np.empty(0)
         self.units = {}
-        self.meta_dict = {}
+        self._meta_dict = {}
         # These should remain empty in this class
         #self.cycle = np.empty(0)
         #self.oxred = np.empty(0)
@@ -49,7 +49,6 @@ class ElectroChemistry():
         self.area = float()
         self.starttime = datetime
         self.label = None
-        self._bokeh_tooltips = None
     def __getitem__(self, key):
         '''Makes object subscriptable like a dict'''
         return self.__getattribute__(key)
@@ -83,27 +82,27 @@ class ElectroChemistry():
                                      _split_by_length(row[20:])])
         # If the experiment was modified during run, the last value will be entered
         widthsep = {row[0]: row[1:] for row in wsep}
-        self.meta_dict = {**colonsep, **widthsep}
-        self.starttime = date_parser.parse(self.meta_dict['Acquisition started on'])
+        self._meta_dict = {**colonsep, **widthsep}
+        self.starttime = date_parser.parse(self._meta_dict['Acquisition started on'])
 
     def parse_meta_gamry(self):
         '''parse attribudes from the metadata block'''
-        self.meta_dict = {}
+        self._meta_dict = {}
         i = 0
         while i < len(self.meta):
             line = self.meta[i]
             match len(line):
                 case 2:
-                    self.meta_dict[line[0]] = {'value': line[1]}
+                    self._meta_dict[line[0]] = {'value': line[1]}
                 case 4 | 5:
                     if line[0] == 'NOTES': # handle the multi-line note field
-                        self.meta_dict[line[0]] = {'value': ""}
+                        self._meta_dict[line[0]] = {'value': ""}
                         i += 1
                         for _ in range(i,int(line[2])):
-                            self.meta_dict[line[0]]['value'] += self.meta[i]
+                            self._meta_dict[line[0]]['value'] += self.meta[i]
                             i += 1
                     else:
-                        self.meta_dict[line[0]] = {
+                        self._meta_dict[line[0]] = {
                             'label': line[1],
                             'value': line[2],
                             'description': ', '.join(line[3:])
@@ -112,15 +111,15 @@ class ElectroChemistry():
         # Import into attributes
         metamap = {'area': 'AREA'}
         for key, label in metamap.items():
-            self[key] = float(self.meta_dict[label]['value'])
+            self[key] = float(self._meta_dict[label]['value'])
             try:
                 self.units[key] = re.search(r'\((.*?)\)',
-                                            self.meta_dict[label]['description']).group(1)
+                                            self._meta_dict[label]['description']).group(1)
             except Exception:
                 pass
 
-        date_str = self.meta_dict['DATE']['value']
-        time_str = self.meta_dict['TIME']['value']
+        date_str = self._meta_dict['DATE']['value']
+        time_str = self._meta_dict['TIME']['value']
         self.starttime = date_parser.parse(date_str + ' ' + time_str)
         timedeltas = np.array([timedelta(seconds=t) for t in self.time])
         self.timestamps = np.array([self.starttime + delta for delta in timedeltas])

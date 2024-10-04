@@ -36,17 +36,17 @@ class CyclicVoltammetry(ElectroChemistry):
     def parse_meta_mpt(self):
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
-        self.scanrate = float(self.meta_dict['dE/dt'][0][0])
-        self.units['scanrate'] = self.meta_dict['dE/dt unit'][0]
-        self.pot_init = float(self.meta_dict['Ei'][0][0])
-        self.units['pot_init'] = self.meta_dict['Ei'][1]
-        self.pot_upper = float(self.meta_dict['E1'][0][0])
-        self.units['pot_upper'] = self.meta_dict['E1'][1]
-        self.pot_lower = float(self.meta_dict['E2'][0][0])
-        self.units['pot_lower'] = self.meta_dict['E2'][1]
-        self.pot_end = float(self.meta_dict['Ef'][0][0])
-        self.units['pot_end'] = self.meta_dict['Ef'][1]
-        self.ncycles = int(self.meta_dict['nc cycles'][0][0])
+        self.scanrate = float(self._meta_dict['dE/dt'][0][0])
+        self.units['scanrate'] = self._meta_dict['dE/dt unit'][0]
+        self.pot_init = float(self._meta_dict['Ei'][0][0])
+        self.units['pot_init'] = self._meta_dict['Ei'][1]
+        self.pot_upper = float(self._meta_dict['E1'][0][0])
+        self.units['pot_upper'] = self._meta_dict['E1'][1]
+        self.pot_lower = float(self._meta_dict['E2'][0][0])
+        self.units['pot_lower'] = self._meta_dict['E2'][1]
+        self.pot_end = float(self._meta_dict['Ef'][0][0])
+        self.units['pot_end'] = self._meta_dict['Ef'][1]
+        self.ncycles = int(self._meta_dict['nc cycles'][0][0])
 
     def parse_meta_gamry(self):
         '''Parse the metadata list into attributes'''
@@ -59,8 +59,8 @@ class CyclicVoltammetry(ElectroChemistry):
                    'pot_end':'VFINAL', 
                    'ncycles': 'CYCLES'}
         for key, label in metamap.items():
-            self[key] = float(self.meta_dict[label]['value'])
-            self.units[key] = re.search(r'\((.*?)\)', self.meta_dict[label]['description']).group(1)
+            self[key] = float(self._meta_dict[label]['value'])
+            self.units[key] = re.search(r'\((.*?)\)', self._meta_dict[label]['description']).group(1)
         self.ncycles = int(self.ncycles)
         if self.pot_upper < self.pot_lower:
             tmp = self.pot_lower

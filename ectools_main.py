@@ -1,11 +1,11 @@
-'''ectools.py'''
+'''ectools_main.py'''
 import re
 import os
 import numpy as np
 import pandas as pd
 
 # Relational imports
-from . import classes # classes is a collection of container objects meant for different methods
+from .classes import EcList, ElectroChemistry # classes is a collection of container objects meant for different methods
 
 class EcImporter():
     '''Helper object for importing electrochemistry files'''
@@ -21,12 +21,12 @@ class EcImporter():
         for key, val in kwargs:
             setattr(self, key, val)
 
-    def load_folder(self, fpath : str, **kwargs) -> classes.EcList:
+    def load_folder(self, fpath : str, **kwargs) -> EcList:
         '''
         Parse and load the contents of a folder (not subfolders)
         '''
         flist = os.listdir(fpath)
-        eclist = classes.EcList(fpath=fpath, **kwargs)
+        eclist = EcList(fpath=fpath, **kwargs)
         for i, fname in enumerate(flist):
             try:
                 f = self.load_file(fpath, fname)
@@ -37,7 +37,7 @@ class EcImporter():
             finally:
                 print(f'\rProcessing {i} of {len(flist)}' + '.'*(i%7+1), end='\r')
         print(f'Processed {len(flist)} files, parsed {len(eclist)}')
-        eclist._generate_fid_idx() # generate alternative file id index
+        eclist._generate_fid_idx() # pylint: disable=protected-access (because timing)
         return eclist
 
     def load_file(self, fpath, fname):
@@ -70,12 +70,12 @@ class EcImporter():
 def get_class(ident : str):
     '''Tries to match the identifier with the container classes available.'''
     if ident is None:
-        return classes.ElectroChemistry
-    for child in classes.ElectroChemistry.__subclasses__():
+        return ElectroChemistry
+    for child in ElectroChemistry.__subclasses__():
         for class_ident in child.identifiers:
             if re.match(class_ident, ident):
                 return child
-    return classes.ElectroChemistry # If no indentifier is matched, return ElectroChemistry class
+    return ElectroChemistry # If no indentifier is matched, return ElectroChemistry class
 
 def parse_file_gamry(fname, fpath):
     '''Parse a Gamry formatted ascii file (such as .-DAT). 

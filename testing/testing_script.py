@@ -1,15 +1,17 @@
 '''testing ectools on data in the data folder'''
-
-#import os
-#import re
-
-#import numpy as np
-#import pandas as pd
-#from matplotlib import pyplot as plt
-
 import ectools as ec
 from ectools.helper_functions import filename_parser
-ec.set_config('plot_backend', ec.Plotter.BOKEH)
+
+import sys
+import os
+
+# Add the parent directory to sys.path to allow relational import of ectools
+sys.path.append(os.path.join(os.getcwd(), '..'))
+
+# Now you can import the ectools package
+
+
+ec.set_config('plotter', ec.Plotter.BOKEH)
 
 FPATH = 'data/'
 FNAME = '240912_01_MCL16_CSWWE1_LSV100-INIT_CO2_750C.DTA'
@@ -24,4 +26,3 @@ f.set_area(0.489)
 #f.plot(y='curr_dens',hue='cycle', cycles=[1,2])
 
 fl = imp.load_folder(FPATH)
-f
