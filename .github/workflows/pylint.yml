@@ -17,7 +17,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install pylint numpy matplotlib pandas
+        pip install pylint numpy matplotlib pandas bokeh
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py') --output=lint.txt || true
@@ -26,13 +26,13 @@ jobs:
       with:
         name: lint.txt
         path: lint.txt
-    - name: Create log folder
-      run: |
-        mkdir -p dev/pylint-output
-    - name: Download log
-      uses: actions/download-artifact@v4
-      with:
-        name: lint.txt
-        path: dev/pylint-output
-    - name: Display structure of downloaded files
-      run: ls -R dev
+    # - name: Create log folder
+    #   run: |
+    #     mkdir -p dev/pylint-output
+    # - name: Download log
+    #   uses: actions/download-artifact@v4
+    #   with:
+    #     name: lint.txt
+    #     path: dev/pylint-output
+    # - name: Display structure of downloaded files
+    #   run: ls -R dev
