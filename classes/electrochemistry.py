@@ -7,6 +7,11 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 import ectools as ec
+from ectools import BOKEH_AVAILABLE
+
+if BOKEH_AVAILABLE:
+    from bokeh.plotting import figure, show
+    from bokeh.models import ColumnDataSource
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
@@ -33,12 +38,11 @@ class ElectroChemistry():
         self.meta = meta # Metadata block
         for key, val in kwargs.items():
             setattr(self, key, val)
-        # Empty arrays should help with intellisense and linting. Is there a better way?
+        # Initialize data columns as empty arrays
         self.time = np.empty(0)
         self.curr = np.empty(0)
         self.curr_dens = np.empty(0)
         self.pot = np.empty(0)
-        self.timestamps = np.empty(0)
         self.timestamps = np.empty(0)
         self.units = {}
         self._meta_dict = {}
@@ -123,18 +127,16 @@ class ElectroChemistry():
         self.starttime = date_parser.parse(date_str + ' ' + time_str)
         timedeltas = np.array([timedelta(seconds=t) for t in self.time])
         self.timestamps = np.array([self.starttime + delta for delta in timedeltas])
-    
+
     def makelab(self, axid):
         '''Generate an axis label with unit'''
         d = {'curr': 'I ', 'pot': 'E ', 'time': 'time ', 'curr_dens': 'I\''}
         return d[axid] + '(' + self.units[axid] + ')'
 
-    def plot_bokeh(self): #TODO further work
+    def plot_bokeh(self, x='time', y='curr'): #TODO further work
         """Plot using Bokeh with global settings."""
         if not ec.BOKEH_AVAILABLE:
             raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
-        
-        from bokeh.plotting import figure, show
 
         # Generate default tooltips if none are set
         #ec.bokeh.generate_default_tooltips(self.data.keys())
@@ -146,8 +148,20 @@ class ElectroChemistry():
             title=ec.bokeh.title,
         )
         p.add_tools(ec.bokeh.hover)
-        p.line(self.time, self.curr)
+        p.line(x,y,source=self._create_column_data_source())
         show(p)
+
+    def _create_column_data_source(self) ->ColumnDataSource :
+        source = ColumnDataSource(
+            data={
+                'time' : self.time,
+                'pot' : self.pot,
+                'curr' : self.curr,
+                'curr_dens' : self.curr_dens,
+                'timestamp' : self.timestamps
+            }
+        )
+        return source
 
     def plot(self,
         ax=None, # pyplot axes

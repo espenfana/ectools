@@ -1,5 +1,5 @@
 ''' ectools/bokeh_settings.py'''
-from bokeh.plotting import ColumnDataSource
+#from bokeh.plotting import ColumnDataSource
 from bokeh.models import HoverTool
 #from bokeh.io import output_notebook, output_file
 
@@ -16,8 +16,8 @@ class BokehSettings:
         self.title = "Bokeh Plot"   # Default plot title
         self.hover = None
         self.output = NOTEBOOK
-        
-    def set(self, 
+
+    def set(self,
             figsize=None,
             tooltips=None,
             title=None,

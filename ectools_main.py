@@ -37,7 +37,7 @@ class EcImporter():
             finally:
                 print(f'\rProcessing {i} of {len(flist)}' + '.'*(i%7+1), end='\r')
         print(f'Processed {len(flist)} files, parsed {len(eclist)}')
-        eclist._generate_fid_idx() # pylint: disable=protected-access (because timing)
+        eclist._generate_fid_idx() # pylint: disable=protected-access #(because timing)
         return eclist
 
     def load_file(self, fpath, fname):
