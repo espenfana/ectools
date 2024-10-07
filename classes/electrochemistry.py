@@ -7,7 +7,8 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 import ectools as ec
-from ectools import BOKEH_AVAILABLE
+
+from ..config import BOKEH_AVAILABLE, bokeh_conf
 
 if BOKEH_AVAILABLE:
     from bokeh.plotting import figure, show
@@ -135,19 +136,19 @@ class ElectroChemistry():
 
     def plot_bokeh(self, x='time', y='curr'): #TODO further work
         """Plot using Bokeh with global settings."""
-        if not ec.BOKEH_AVAILABLE:
+        if not BOKEH_AVAILABLE:
             raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
 
         # Generate default tooltips if none are set
-        #ec.bokeh.generate_default_tooltips(self.data.keys())
+        #bokeh_conf.generate_default_tooltips(self.data.keys())
 
         # Use Bokeh settings for figure size, title, and tooltips
         p = figure(
-            width=ec.bokeh.figsize[0],  # Use the configured figure size
-            height=ec.bokeh.figsize[1],
-            title=ec.bokeh.title,
+            width=bokeh_conf.figsize[0],  # Use the configured figure size
+            height=bokeh_conf.figsize[1],
+            title=bokeh_conf.title,
         )
-        p.add_tools(ec.bokeh.hover)
+        p.add_tools(bokeh_conf.hover)
         p.line(x,y,source=self._create_column_data_source())
         show(p)
 

@@ -1,10 +1,14 @@
 '''testing ectools on data in the data folder'''
-import ectools as ec
-from ectools.helper_functions import filename_parser
+
 
 import sys
 import os
 import random
+os.chdir('/workspaces')
+print(os.getcwd())
+
+import ectools as ec
+from ectools.helper_functions import filename_parser
 
 # Add the parent directory to sys.path to allow relational import of ectools
 sys.path.append(os.path.join(os.getcwd(), '..'))
@@ -13,7 +17,7 @@ sys.path.append(os.path.join(os.getcwd(), '..'))
 
 ec.set_config('plotter', ec.Plotter.BOKEH)
 
-FPATH = 'data/'
+FPATH = 'ectools/testing/data/'
 FNAME = '240912_01_MCL16_CSWWE1_LSV100-INIT_CO2_750C.DTA'
 
 # Importing and plotting single file

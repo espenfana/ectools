@@ -1,4 +1,38 @@
-''' ectools/bokeh_settings.py'''
+''' ectools/config.py'''
+
+from enum import Enum
+
+try:
+    from bokeh.plotting import figure
+    BOKEH_AVAILABLE = True
+except ImportError:
+    BOKEH_AVAILABLE = False
+
+class Plotter(Enum):
+    '''Selection for deafault plotting backend in ectools'''
+    MATPLOTLIB = 'matplotlib'
+    BOKEH = 'bokeh'
+
+_config = {
+    'plotter': Plotter.MATPLOTLIB  # default
+}
+
+def set_config(key, value):
+    '''Set a configuration parameter'''
+    if key == 'plotter' and not isinstance(value, Plotter):
+        raise ValueError(f"{value} is not a valid PlotBackend")
+    # Attempt to import bokeh
+    if value == Plotter.BOKEH:
+        if not BOKEH_AVAILABLE:
+            raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
+    _config[key] = value
+
+def get_config(key):
+    """Get a configuration parameter."""
+    return _config.get(key)
+
+
+### Bokeh settings ###
 #from bokeh.plotting import ColumnDataSource
 from bokeh.models import HoverTool
 #from bokeh.io import output_notebook, output_file
@@ -52,5 +86,6 @@ class BokehSettings:
         self.hover.formatters={'@timestamps': 'datetime'}
 
 # Create a global instance of BokehSettings
-bokeh = BokehSettings()
-bokeh.set_tooltips()
+if BOKEH_AVAILABLE:
+    bokeh_conf = BokehSettings()
+    bokeh_conf.set_tooltips()
