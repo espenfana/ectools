@@ -11,7 +11,6 @@ sys.path.append(os.path.join(os.getcwd(), '..'))
 
 # Now you can import the ectools package
 
-
 ec.set_config('plotter', ec.Plotter.BOKEH)
 
 FPATH = 'data/'

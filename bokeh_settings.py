@@ -1,7 +1,7 @@
-# ectools/bokeh_settings.py
-from bokeh.plotting import figure, ColumnDataSource
+''' ectools/bokeh_settings.py'''
+from bokeh.plotting import ColumnDataSource
 from bokeh.models import HoverTool
-from bokeh.io import output_notebook, output_file
+#from bokeh.io import output_notebook, output_file
 
 
 NOTEBOOK = 'notebook'
@@ -18,9 +18,9 @@ class BokehSettings:
         self.output = NOTEBOOK
         
     def set(self, 
-            figsize=None, 
-            tooltips=None, 
-            title=None, 
+            figsize=None,
+            tooltips=None,
+            title=None,
             output=None):
         """Set Bokeh-specific plot settings."""
         if figsize:

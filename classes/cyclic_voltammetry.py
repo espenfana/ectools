@@ -120,25 +120,24 @@ class CyclicVoltammetry(ElectroChemistry):
                 return self[column][self.cycle < int(match.group(1))]
 
             # Match '>n'
-            elif match := re.match(r'^>(\d+)$', cycles):
+            if match := re.match(r'^>(\d+)$', cycles):
                 return self[column][self.cycle > int(match.group(1))]
 
             # Match 'n:m' range
-            elif match := re.match(r'^(\d+):(\d+)$', cycles):
+            if match := re.match(r'^(\d+):(\d+)$', cycles):
                 lower, upper = int(match.group(1)), int(match.group(2))
                 return self[column][(self.cycle >= lower) & (self.cycle <= upper)]
 
             # Match 'n:' (from n to the end)
-            elif match := re.match(r'^(\d+):$', cycles):
+            if match := re.match(r'^(\d+):$', cycles):
                 lower = int(match.group(1))
                 return self[column][self.cycle >= lower]
 
             # Match ':n' (from the start to n)
-            elif match := re.match(r'^:(\d+)$', cycles):
+            if match := re.match(r'^:(\d+)$', cycles):
                 upper = int(match.group(1))
                 return self[column][self.cycle <= upper]
 
-            else:
-                raise ValueError(f"Invalid condition string: {cycles}")
+            raise ValueError(f"Invalid condition string: {cycles}")
 
         raise TypeError("cycles must be an int, list, or str")
