@@ -26,9 +26,14 @@ jobs:
       with:
         name: lint.txt
         path: lint.txt
-    - uses: actions/download-artifact@v4
+    - name: Create log folder
+      run: |
+        mkdir -p .github/workflows/output
+    - name: Download log
+      uses: actions/download-artifact@v4
       with:
         name: lint.txt
+        path: .github/workflows/output
     - name: Display structure of downloaded files
       run: ls -R .github/workflows
       
