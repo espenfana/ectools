@@ -9,6 +9,7 @@ jobs:
       matrix:
         python-version: ["3.12"]
     steps:
+    - run: mkdir -p .github/workflows/output
     - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
@@ -24,5 +25,5 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v3
       with:
-        name: lint.txt
-        path: lint.txt
+        name: lint
+        path: .github/workflows/output/lint.txt
