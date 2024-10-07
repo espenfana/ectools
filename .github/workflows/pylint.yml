@@ -28,12 +28,11 @@ jobs:
         path: lint.txt
     - name: Create log folder
       run: |
-        mkdir -p .github/workflows/output
+        mkdir -p dev/pylint-output
     - name: Download log
       uses: actions/download-artifact@v4
       with:
         name: lint.txt
-        path: .github/workflows/output
+        path: dev/pylint-output
     - name: Display structure of downloaded files
-      run: ls -R .github/workflows
-      
+      run: ls -R dev
