@@ -30,5 +30,5 @@ jobs:
       with:
         name: lint.txt
     - name: Display structure of downloaded files
-      run: ls -R .github/workflows/output
+      run: ls -R .github/workflows
       
