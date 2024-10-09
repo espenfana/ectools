@@ -23,6 +23,10 @@ jobs:
         pylint $(git ls-files '*.py') --output=lint.txt || true
     - name: Print Pylint Output
       run: cat lint.txt
+    - name: Extract and Print Pylint Score
+      run: |
+        score=$(grep -o "rated at [0-9]*\.[0-9]*/10" lint.txt | tail -1)
+        echo "Pylint Score: $score"
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
