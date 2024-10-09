@@ -1,24 +1,27 @@
 '''testing ectools on data in the data folder'''
 
-
-import sys
 import os
 import random
-os.chdir('/workspaces')
-print(os.getcwd())
+
+# Check if running in a Codespace
+if 'CODESPACE_NAME' in os.environ:
+    os.chdir('/workspaces')
+print(f"Current working directory: {os.getcwd()}")
 
 import ectools as ec
 from ectools.helper_functions import filename_parser
 
-# Add the parent directory to sys.path to allow relational import of ectools
-sys.path.append(os.path.join(os.getcwd(), '..'))
-
-# Now you can import the ectools package
-
+# Set the plotter configuration
 ec.set_config('plotter', ec.Plotter.BOKEH)
 
-FPATH = 'ectools/testing/data/'
+# Define the file path and name relative to the script's location
+script_dir = os.path.dirname(os.path.abspath(__file__))
+FPATH = os.path.normpath(os.path.join(script_dir, 'data/'))
 FNAME = '240912_01_MCL16_CSWWE1_LSV100-INIT_CO2_750C.DTA'
+
+# Print the full path to the file for debugging
+full_path = os.path.join(FPATH, FNAME)
+print(f"Full path to the file: {full_path}")
 
 # Importing and plotting single file
 try:
@@ -40,7 +43,7 @@ except Exception as e:
     print('Methods testing failed')
     raise e
 
-#f.plot(y='curr_dens',hue='cycle', cycles=[1,2])
+# f.plot(y='curr_dens', hue='cycle', cycles=[1, 2])
 
 # Loading a folder and returning an EcList
 try:
