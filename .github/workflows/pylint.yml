@@ -21,18 +21,10 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         pylint $(git ls-files '*.py') --output=lint.txt || true
+    - name: Print Pylint Output
+      run: cat lint.txt
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: lint.txt
         path: lint.txt
-    # - name: Create log folder
-    #   run: |
-    #     mkdir -p dev/pylint-output
-    # - name: Download log
-    #   uses: actions/download-artifact@v4
-    #   with:
-    #     name: lint.txt
-    #     path: dev/pylint-output
-    # - name: Display structure of downloaded files
-    #   run: ls -R dev
