@@ -17,7 +17,7 @@ ec.set_config('plotter', ec.Plotter.BOKEH)
 # Define the file path and name relative to the script's location
 script_dir = os.path.dirname(os.path.abspath(__file__))
 FPATH = os.path.normpath(os.path.join(script_dir, 'data/'))
-FNAME = '240912_01_MCL16_CSWWE1_LSV100-INIT_CO2_750C.DTA'
+FNAME = '241007_01_MCL21_cswWE1_CV2_CO2_750C.DTA'
 
 # Print the full path to the file for debugging
 full_path = os.path.join(FPATH, FNAME)
@@ -32,7 +32,7 @@ except Exception as e:
     print('Single file import failed')
     raise e
 
-# Testing methods
+# Testing "file" methods
 try:
     imp = ec.EcImporter(fname_parser=filename_parser)
     f = imp.load_file(FPATH, FNAME)
