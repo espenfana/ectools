@@ -1,46 +1,42 @@
-name: Collect Pylint Scores
+name: Pylint Score
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  collect-scores:
+  pylint:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout repo
-      uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-    - name: List workflow runs
-      uses: actions/github-script@v6
-      id: list-runs
+    - name: Set up Python
+      uses: actions/setup-python@v2
       with:
-        script: |
-          const runs = await github.actions.listWorkflowRuns({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            workflow_id: 'pylint.yml',
-            per_page: 100
-          });
-          return runs.data.workflow_runs.map(run => ({id: run.id, run_number: run.run_number}));
+        python-version: '3.x'
 
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: pylint-score
-        path: ./artifacts
-
-    - name: Parse pylint scores
+    - name: Install dependencies
       run: |
-        echo "| Run Number | Pylint Score |" > score_table.md
-        echo "|------------|--------------|" >> score_table.md
-        for artifact in ./artifacts/*; do
-          run_number=$(echo $artifact | grep -oP '(?<=run_)\d+')
-          score=$(grep 'Your code has been rated at' $artifact | awk '{print $7}' | cut -d '/' -f 1)
-          echo "| $run_number | $score |" >> score_table.md
+        python -m pip install --upgrade pip
+        pip install pylint
 
-    - name: Upload score table
-      uses: actions/upload-artifact@v4
-      with:
-        name: score_table
-        path: score_table.md
+    - name: Run pylint
+      id: pylint
+      run: |
+        pylint_score=$(pylint YOUR_PACKAGE_NAME | tee pylint_output.txt | grep "Your code has been rated at" | awk '{print $7}' | cut -d'/' -f1)
+        echo ::set-output name=score::$pylint_score
+
+    - name: Append pylint score to file
+      run: |
+        echo "Run ID: ${{ github.run_id }} | Pylint Score: ${{ steps.pylint.outputs.score }}" >> pylint_scores.txt
+        git config --global user.name 'github-actions'
+        git config --global user.email 'github-actions@github.com'
+        git add pylint_scores.txt
+        git commit -m "Update pylint score"
+        git push
