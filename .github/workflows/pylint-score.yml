@@ -35,3 +35,10 @@ jobs:
         git add pylint_scores.txt
         git commit -m "Update pylint score"
         git push
+        
+    - name: Push changes
+      env:
+        ACTIONS_TOKEN: ${{ secrets.ACTIONS_TOKEN }}
+      run: |
+        git remote set-url origin https://x-access-token:${{ secrets.ACTIONS_TOKEN }}@github.com/${{ github.repository }}.git
+        git push origin main
