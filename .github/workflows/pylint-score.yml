@@ -1,1 +1,47 @@
+name: Collect Pylint Scores
 
+on:
+  workflow_dispatch:
+
+jobs:
+  collect-scores:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v2
+
+    - name: List workflow runs
+      uses: actions/github-script@v3
+      id: list-runs
+      with:
+        script: |
+          const runs = await github.actions.listWorkflowRuns({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'pylint.yml',
+            per_page: 100
+          });
+          return runs.data.workflow_runs.map(run => ({id: run.id, run_number: run.run_number}));
+
+    - name: Download artifacts
+      uses: actions/download-artifact@v2
+      with:
+        name: pylint-score
+        path: ./artifacts
+
+    - name: Parse pylint scores
+      run: |
+        echo "| Run Number | Pylint Score |" > score_table.md
+        echo "|------------|--------------|" >> score_table.md
+        for artifact in ./artifacts/*; do
+          run_number=$(echo $artifact | grep -oP '(?<=run_)\d+')
+          score=$(grep 'Your code has been rated at' $artifact | awk '{print $7}' | cut -d '/' -f 1)
+          echo "| $run_number | $score |" >> score_table.md
+        done
+
+    - name: Upload score table
+      uses: actions/upload-artifact@v2
+      with:
+        name: score_table
+        path: score_table.md
