@@ -87,14 +87,14 @@ def parse_file_gamry(fname, fpath):
             technique = None
             while line:=f.readline():
                 if line == "": # at EOF, readline() will return an empty string
-                    raise Exception('No TABLE detected') # pylint: disable=broad-raise
+                    raise RuntimeError('No TABLE detected')
                 line = line.rstrip().split('\t')
-                if 'TABLE' in line: 
+                if 'TABLE' in line:
                     if 'OCVCURVE' in line: # TODO add saving of OCP curve
                         num_lines = int(line[-1])
                         f.readlines(num_lines)
                     else:
-                        break 
+                        break
                 meta_list.append(line)
                 if 'TAG' in line:
                     technique = line[1]
