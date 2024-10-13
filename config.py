@@ -73,19 +73,6 @@ class BokehSettings:
         """Retrieve a specific Bokeh setting."""
         return getattr(self, setting, None)
 
-    def set_tooltips(self):
-        '''create hover object and set properties'''
-        self.hover = HoverTool()
-        self.hover.tooltips = [
-        ('E (V)', '@pot'),
-        ('I (A)', '@curr'),
-        ('time (s)', '@time'),
-        ('timestamp', '@timestamps{%F %T}'),
-        ('cycle', '@cycle')
-        ]
-        self.hover.formatters={'@timestamps': 'datetime'}
-
-# Create a global instance of BokehSettings
+# Create an instance of BokehSettings to import
 if BOKEH_AVAILABLE:
     bokeh_conf = BokehSettings()
-    bokeh_conf.set_tooltips()

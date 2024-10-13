@@ -23,7 +23,10 @@ class CyclicVoltammetry(ElectroChemistry):
     def __init__(self, *args, **kwargs):
         '''Create a Cyclic Voltammetry container'''
         super().__init__(*args, **kwargs)
+        # Data columns
         self.cycle = np.empty(0)
+        self.data_columns.extend(['cycle'])
+        # Experiment parameters
         self.scanrate = float()
         self.cycle = float()
         self.pot_init = float()

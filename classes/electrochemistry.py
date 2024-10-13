@@ -12,7 +12,8 @@ from ..config import BOKEH_AVAILABLE, bokeh_conf
 
 if BOKEH_AVAILABLE:
     from bokeh.plotting import figure, show
-    from bokeh.models import ColumnDataSource
+    from bokeh.models import ColumnDataSource, HoverTool
+    from bokeh.transform import factor_cmap
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
@@ -45,6 +46,7 @@ class ElectroChemistry():
         self.curr_dens = np.empty(0)
         self.pot = np.empty(0)
         self.timestamps = np.empty(0)
+        self.data_columns = ['time', 'curr', 'curr_dens', 'pot', 'timestamps']
         self.units = {}
         self._meta_dict = {}
         # These should remain empty in this class
@@ -129,12 +131,17 @@ class ElectroChemistry():
         timedeltas = np.array([timedelta(seconds=t) for t in self.time])
         self.timestamps = np.array([self.starttime + delta for delta in timedeltas])
 
-    def makelab(self, axid):
+    def makelab(self, key):
         '''Generate an axis label with unit'''
-        d = {'curr': 'I ', 'pot': 'E ', 'time': 'time ', 'curr_dens': 'I\''}
-        return d[axid] + '(' + self.units[axid] + ')'
+        d = {'curr': 'I ', 'pot': 'E ', 'time': 't', 'curr_dens': 'I\''}
+        if key not in d:
+            return key
+        label = d[key]
+        if key in self.units:
+            label += f' ({self.units[key]})'
+        return label
 
-    def plot_bokeh(self, x='time', y='curr'): #TODO further work
+    def plot_bokeh(self, x='time', y='curr', hue=None): # Added hue parameter
         """Plot using Bokeh with global settings."""
         if not BOKEH_AVAILABLE:
             raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
@@ -148,21 +155,39 @@ class ElectroChemistry():
             height=bokeh_conf.figsize[1],
             title=bokeh_conf.title,
         )
-        p.add_tools(bokeh_conf.hover)
-        p.line(x,y,source=self._create_column_data_source())
+        p.add_tools(self.get_bokeh_tooltips())
+        if hue is None:
+            color = 'blue'  # Default color
+        else:
+            unique_hues = list(set(self[hue]))  # Get unique values in the hue column
+            # Create a color mapper
+            color = factor_cmap(hue, palette='Category10_10', factors=unique_hues)
+
+        p.line(x, y,
+               source=ColumnDataSource(self.get_data_dict()),
+               color=color)
+
         show(p)
 
-    def _create_column_data_source(self) ->ColumnDataSource :
-        source = ColumnDataSource(
-            data={
-                'time' : self.time,
-                'pot' : self.pot,
-                'curr' : self.curr,
-                'curr_dens' : self.curr_dens,
-                'timestamp' : self.timestamps
-            }
-        )
-        return source
+    def get_data_dict(self) ->ColumnDataSource :
+        """
+        Get all data columns as a dictionary.
+        """
+        return {key: self[key] for key in self.data_columns}
+    
+    def get_bokeh_tooltips(self) -> HoverTool:
+        '''Get hover tooltips for Bokeh plot'''
+        
+        hover = HoverTool()
+        tooltips = []
+        for key in self.data_columns:
+            if key != 'timestamps':
+                tooltips.append((self.makelab(key), f'@{key}'))
+
+        tooltips.append(('timestamp', '@timestamps{%F %T}'))
+        hover.tooltips = tooltips
+        hover.formatters = {'@timestamps': 'datetime'}
+        return hover
 
     def plot(self,
         ax=None, # pyplot axes

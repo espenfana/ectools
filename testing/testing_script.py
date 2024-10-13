@@ -36,6 +36,7 @@ except Exception as e:
 try:
     imp = ec.EcImporter(fname_parser=filename_parser)
     f = imp.load_file(FPATH, FNAME)
+    # Check setting in post electrode area
     f.set_area(2)
     r = random.randint(0, len(f.curr))
     assert f.curr[r] == 2 * f.curr_dens[r], f'Current density not correct, curr:{f.curr[r]}, curr_dens:{f.curr_dens[r]}'
