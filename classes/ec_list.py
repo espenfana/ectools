@@ -1,31 +1,34 @@
 '''ecList class'''
 
 import pandas as pd
+from typing import TypeVar, Generic, List, Dict, Optional
 
 from .electrochemistry import ElectroChemistry
 
-class EcList(list):
+T = TypeVar('T', bound=ElectroChemistry)
+
+class EcList(List[T], Generic[T]):
     '''List class for handling ElectroChemistry class objects'''
 
-    def __init__(self, fpath = None, **kwargs):
+    def __init__(self, fpath: Optional[str] = None, **kwargs):
         self.fpath = fpath
         super().__init__()
         for key, val in kwargs.items():
             setattr(self, key, val)
-        self._fid_idx = {}
+        self._fid_idx: Dict[str, int] = {}
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'ecList with {len(self)} items'
 
-    def file_indices(self):
+    def file_indices(self) -> Dict[int, str]:
         '''Returns a dict with ecList contents'''
         return {i: item.fname for i, item in enumerate(self)}
 
-    def file_class(self):
+    def file_class(self) -> Dict[int, str]:
         '''Returns a dict with class names for ecList contents'''
-        return{i: item.__class__.__name__ for i, item in enumerate(self)}
+        return {i: item.__class__.__name__ for i, item in enumerate(self)}
 
-    def describe(self):
+    def describe(self) -> str:
         '''return a pretty-printable description of EcList contents'''
         describe_df = pd.DataFrame(columns=['idx',
                                             'Filename',
@@ -95,7 +98,7 @@ class EcList(list):
         """Normalize the file ID by removing leading zeroes and converting to lowercase."""
         return fid.lstrip('0').lower()
 
-    def fid(self, fid:str) -> ElectroChemistry:
+    def fid(self, fid:str) -> ElectroChemistry: # deprecated
         '''Return file based on file id (number + letter) (must be parsed from e.g. filename)'''
         if fid in self._fid_idx:
             return self[self._fid_idx[fid]]

@@ -6,8 +6,6 @@ import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
 import numpy as np
 
-import ectools as ec
-
 from ..config import BOKEH_AVAILABLE, bokeh_conf
 
 if BOKEH_AVAILABLE:
@@ -143,51 +141,49 @@ class ElectroChemistry():
 
     def plot_bokeh(self, x='time', y='curr', hue=None): # Added hue parameter
         """Plot using Bokeh with global settings."""
-        if not BOKEH_AVAILABLE:
+        if BOKEH_AVAILABLE:
+
+            # Use Bokeh settings for figure size, title, and tooltips
+            p = figure(
+                width=bokeh_conf.figsize[0],  # Use the configured figure size
+                height=bokeh_conf.figsize[1],
+                title=bokeh_conf.title,
+            )
+            p.add_tools(self.get_hover_tool())
+            if hue is None:
+                color = 'blue'  # Default color
+            else:
+                unique_hues = list(set(self[hue]))  # Get unique values in the hue column
+                # Create a color mapper
+                color = factor_cmap(hue, palette='Category10_10', factors=unique_hues)
+
+            p.line(x, y,
+                source=ColumnDataSource(self.get_data_dict()),
+                color=color)
+
+            show(p)
+        else:
             raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
 
-        # Generate default tooltips if none are set
-        #bokeh_conf.generate_default_tooltips(self.data.keys())
-
-        # Use Bokeh settings for figure size, title, and tooltips
-        p = figure(
-            width=bokeh_conf.figsize[0],  # Use the configured figure size
-            height=bokeh_conf.figsize[1],
-            title=bokeh_conf.title,
-        )
-        p.add_tools(self.get_bokeh_tooltips())
-        if hue is None:
-            color = 'blue'  # Default color
-        else:
-            unique_hues = list(set(self[hue]))  # Get unique values in the hue column
-            # Create a color mapper
-            color = factor_cmap(hue, palette='Category10_10', factors=unique_hues)
-
-        p.line(x, y,
-               source=ColumnDataSource(self.get_data_dict()),
-               color=color)
-
-        show(p)
-
-    def get_data_dict(self) ->ColumnDataSource :
+    def get_data_dict(self) -> dict:
         """
         Get all data columns as a dictionary.
         """
         return {key: self[key] for key in self.data_columns}
     
-    def get_bokeh_tooltips(self) -> HoverTool:
+    def get_hover_tool(self) -> 'HoverTool':
         '''Get hover tooltips for Bokeh plot'''
-        
-        hover = HoverTool()
-        tooltips = []
-        for key in self.data_columns:
-            if key != 'timestamps':
-                tooltips.append((self.makelab(key), f'@{key}'))
+        if BOKEH_AVAILABLE:
+            hover = HoverTool()
+            tooltips = []
+            for key in self.data_columns:
+                if key != 'timestamps':
+                    tooltips.append((self.makelab(key), f'@{key}'))
 
-        tooltips.append(('timestamp', '@timestamps{%F %T}'))
-        hover.tooltips = tooltips
-        hover.formatters = {'@timestamps': 'datetime'}
-        return hover
+            tooltips.append(('timestamp', '@timestamps{%F %T}'))
+            hover.tooltips = tooltips
+            hover.formatters = {'@timestamps': 'datetime'}
+            return hover
 
     def plot(self,
         ax=None, # pyplot axes
