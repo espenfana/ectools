@@ -3,25 +3,63 @@ import re
 import os
 import numpy as np
 import pandas as pd
+import logging
+from logging.handlers import MemoryHandler
 
 # Relational imports
-from .classes import EcList, ElectroChemistry # classes is a collection of container objects meant for different methods
+from .classes import EcList, ElectroChemistry 
+# classes is a collection of container objects meant for different methods
 
-class EcImporter():
-    '''Helper object for importing electrochemistry files'''
-    def __init__(self, fname_parser: object=None , **kwargs):
+class EcImporter:
+    """
+    EcImporter is a class for importing and parsing electrochemistry files from a specified folder.
+    Attributes:
+        fname_parser (function): Optional function to parse information from the file name and path.
+        print_errors (bool): Flag to determine whether to print errors to the console.
+        logger (logging.Logger): Logger instance for logging messages and errors.
+    Methods:
+        load_folder(fpath: str, **kwargs) -> EcList:
+            Parse and load the contents of a folder (not subfolders).
+        load_file(fpath: str, fname: str):
+            Load and parse an electrochemistry file.
+        print_error_log():
+            Print the error log with the same formatting used by the logger.
+    """
+    def __init__(self, fname_parser=None, print_errors=False, **kwargs):
         '''
         fname_parser: optional function to parse information from the file name and path.
             Expected to return a dictionary, from which the key-value pairs are added to the 
             container object returned from load_file.
+        print_errors: whether to print errors to the console.
         kwargs: key-val pairs added to this instance.
         '''
         self.fname_parser = fname_parser
-        self.log = []
-        for key, val in kwargs:
+        self.print_errors = print_errors
+
+        # Set up logging
+        self.logger = logging.getLogger(__name__)
+        self.logger.setLevel(logging.DEBUG)
+
+        # Create handlers
+        console_handler = logging.StreamHandler()
+        memory_handler = MemoryHandler(capacity=10000, flushLevel=logging.ERROR)
+
+        # Set logging levels
+        console_handler.setLevel(logging.DEBUG if print_errors else logging.ERROR)
+
+        # Create formatters and add them to handlers
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_handler.setFormatter(formatter)
+        memory_handler.setFormatter(formatter)
+
+        # Add handlers to the logger
+        self.logger.addHandler(console_handler)
+        self.logger.addHandler(memory_handler)
+
+        for key, val in kwargs.items():
             setattr(self, key, val)
 
-    def load_folder(self, fpath : str, **kwargs) -> EcList:
+    def load_folder(self, fpath: str, **kwargs) -> EcList:
         '''
         Parse and load the contents of a folder (not subfolders)
         '''
@@ -32,12 +70,12 @@ class EcImporter():
                 f = self.load_file(fpath, fname)
                 if f:
                     eclist.append(f)
-            except Exception as error: # pylint: disable=broad-except
-                print(error)
+            except Exception as error:  # pylint: disable=broad-except
+                self.logger.error(error)
             finally:
-                print(f'\rProcessing {i} of {len(flist)}' + '.'*(i%7+1), end='\r')
-        print(f'Processed {len(flist)} files, parsed {len(eclist)}')
-        eclist._generate_fid_idx() # pylint: disable=protected-access #(because timing)
+                self.logger.info(f'Processing {i} of {len(flist)}' + '.' * (i % 7 + 1))
+        self.logger.info('Processed %d files, parsed %d', len(flist), len(eclist))
+        eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
         return eclist
 
     def load_file(self, fpath, fname):
@@ -47,27 +85,35 @@ class EcImporter():
         try:
             with open(os.path.join(fpath, fname), encoding='utf8') as f:
                 row_1 = f.readline().strip()
-                if re.match('EC-Lab ASCII FILE', row_1): # File identified as EC-lab
+                if re.match('EC-Lab ASCII FILE', row_1):  # File identified as EC-lab
                     container = parse_file_mpt(fname, fpath)
                 elif re.match('EXPLAIN', row_1):
                     container = parse_file_gamry(fname, fpath)
                 else:
-                    self.log.append('-F- ' +  fpath + fname)
-                    self.log.append('Not a recognized format')
+                    error_message = f'-F- {fpath}{fname}\nNot a recognized format'
+                    self.logger.error(error_message)
                     return None
                 if self.fname_parser:
                     fname_dict = self.fname_parser(fpath, fname)
                     for key, val in fname_dict.items():
                         setattr(container, key, val)
-                self.log.append('-S- ' + fpath + fname)
+                success_message = f'-S- {fpath}{fname}'
+                self.logger.info(success_message)
                 return container
-        except Exception as error: # pylint: disable=broad-except
-            self.log.append('-F- ' +  fpath + fname)
-            self.log.append('ecImporter.load_file error')
-            self.log.append(error)
+        except Exception as error:  # pylint: disable=broad-except
+            error_message = f'-F- {fpath}{fname}\necImporter.load_file error\n{error}'
+            self.logger.error(error_message)
             raise error
 
-def get_class(ident : str):
+    def print_error_log(self):
+        '''Print the error log with the same formatting used by the logger'''
+        for handler in self.logger.handlers:
+            if isinstance(handler, MemoryHandler):
+                handler.flush()
+                for record in handler.buffer:
+                    print(handler.format(record))
+
+def get_class(ident: str):
     '''Tries to match the identifier with the container classes available.'''
     if ident is None:
         return ElectroChemistry
@@ -75,7 +121,7 @@ def get_class(ident : str):
         for class_ident in child.identifiers:
             if re.match(class_ident, ident):
                 return child
-    return ElectroChemistry # If no indentifier is matched, return ElectroChemistry class
+    return ElectroChemistry  # If no identifier is matched, return ElectroChemistry class
 
 def parse_file_gamry(fname, fpath):
     '''Parse a Gamry formatted ascii file (such as .-DAT). 
