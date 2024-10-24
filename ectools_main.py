@@ -31,17 +31,21 @@ class EcImporter:
         kwargs: key-val pairs added to this instance.
         '''
         self.fname_parser = fname_parser
+        self._setup_logging(log_level)
 
-        # Set up logging
+        for key, val in kwargs.items():
+            setattr(self, key, val)
+
+    def _setup_logging(self, log_level):
+        '''Set up logging for the EcImporter class.'''
         self.logger = logging.getLogger(__name__)
-        # Set logger to capture all levels, handlers will filter
-        self.logger.setLevel(logging.DEBUG) 
+        self.logger.setLevel(logging.DEBUG)  # Set logger to capture all levels, handlers will filter
 
         # Clear existing handlers
         if self.logger.hasHandlers():
             self.logger.handlers.clear()
-        # Create handlers
 
+        # Create handlers
         console_handler = logging.StreamHandler()
 
         # Map string log levels to logging module levels
@@ -62,9 +66,6 @@ class EcImporter:
 
         # Add handlers to the logger
         self.logger.addHandler(console_handler)
-
-        for key, val in kwargs.items():
-            setattr(self, key, val)
 
     def load_folder(self, fpath: str, **kwargs) -> EcList:
         '''
@@ -152,7 +153,7 @@ class EcImporter:
                 coln = {} # identifier to column number dictionary
                 units = {} # identifier to column unit dictionary
                 for i, column_header in enumerate(header_row):
-                    for key, id_tuple in container.get_columns.items():
+                    for key, id_tuple in container.column_patterns.items():
                         for id_rgx in id_tuple:
                             if re.match(id_rgx, column_header):
                                 coln[key] = i
@@ -178,6 +179,9 @@ class EcImporter:
                         if 'EXPERIMENTABORTED' in line:
                             break
                         data_block.append(line.split('\t'))
+                
+                if len(data_block) == 0: # Consider filtering out files with empty data blocks
+                    self.logger.warning('Data block is empty for file: %s', fname)
                 for key, j in coln.items():
                     container[key] = np.array(
                     [float(line[j]) if line[j] else np.nan for line in data_block],
@@ -218,7 +222,7 @@ class EcImporter:
             # Match the columns the container class expects with the columns in the header.
             # Need to maintain order as usecols does not!
             for i, colh in enumerate(headers):
-                for key, id_tuple in container.get_columns.items():
+                for key, id_tuple in container.column_patterns.items():
                     for id_rgx in id_tuple:
                         m = re.match(id_rgx, colh)
                         if m:

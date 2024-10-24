@@ -7,7 +7,7 @@ class ChronoPotentiometry(ElectroChemistry):
     # Class variables and constants
     identifiers = {'Chronopotentiometry', 'CP', 'CHRONOP'}
     # Data columns to import
-    get_columns = {**ElectroChemistry.get_columns,
+    column_patterns = {**ElectroChemistry.column_patterns,
     }
     # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
     # naming scheme. The values should be list-like to support multiple different regex identifiers,

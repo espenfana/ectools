@@ -17,12 +17,12 @@ class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
     '''
     # Class variables and constants
-    identifiers = set()
+    identifiers = set(None)
 
     # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
     # naming scheme. The values should be list-like to support multiple different regex identifiers,
     # which are used in a re.search.
-    get_columns = {
+    column_patterns = {
         'redherring': (r'redherring',), # An identifier which is not found will not generate errors
         'signal': (r'Sig',), # Signal, i.e. target potenital
         'time': (r'time/(.?s)',r'^T$',), # Time column

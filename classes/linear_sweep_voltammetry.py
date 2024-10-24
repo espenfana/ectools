@@ -8,7 +8,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
 
     # Class variables and constants
     identifiers = {'Linear Sweep Voltammetry', 'LSV'} 
-    get_columns = {**ElectroChemistry.get_columns,
+    column_patterns = {**ElectroChemistry.column_patterns,
         'oxred': (r'ox/red',),
         'cat': (r'cat', r'cathodic'),
         }

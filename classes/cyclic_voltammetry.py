@@ -9,7 +9,7 @@ class CyclicVoltammetry(ElectroChemistry):
 
     # Class variables and constants
     identifiers = {'Cyclic Voltammetry', 'CV'} # Strings in the raw files which indicate the technique
-    get_columns = {**ElectroChemistry.get_columns,
+    column_patterns = {**ElectroChemistry.column_patterns,
         'oxred': (r'ox/red',),
         'cat': (r'cat', r'cathodic'),
         'cycle': (r'cycle number', r'cycle'),
