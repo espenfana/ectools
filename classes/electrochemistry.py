@@ -116,11 +116,11 @@ class ElectroChemistry():
         # Import into attributes
         metamap = {'area': 'AREA'}
         for key, label in metamap.items():
-            self[key] = float(self._meta_dict[label]['value'])
             try:
+                self[key] = float(self._meta_dict[label]['value'])
                 self.units[key] = re.search(r'\((.*?)\)',
                                             self._meta_dict[label]['description']).group(1)
-            except Exception:
+            except (KeyError, IndexError):
                 pass
 
         date_str = self._meta_dict['DATE']['value']

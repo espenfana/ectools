@@ -34,9 +34,14 @@ class EcImporter:
 
         # Set up logging
         self.logger = logging.getLogger(__name__)
-        self.logger.setLevel(logging.DEBUG)  # Set logger to capture all levels, handlers will filter
+        # Set logger to capture all levels, handlers will filter
+        self.logger.setLevel(logging.DEBUG) 
 
+        # Clear existing handlers
+        if self.logger.hasHandlers():
+            self.logger.handlers.clear()
         # Create handlers
+
         console_handler = logging.StreamHandler()
 
         # Map string log levels to logging module levels
@@ -75,8 +80,9 @@ class EcImporter:
                     eclist.append(f)
                 else:
                     ignored += 1
-            except Exception as error:  # pylint: disable=broad-except
-                self.logger.error('Error processing file %s: %s', fname, error)
+            except Exception:  # pylint: disable=broad-except
+                #self.logger.error('Error processing file %s: %s', fname, error)
+                pass
             finally:
                 print(f'\rProcessing {i} of {len(flist)}' + '.' * (i % 7 + 1), end='\r')
         print(f'\nProcessed {len(flist)} entries, parsed {len(eclist)}, ignored {ignored}')
@@ -104,11 +110,12 @@ class EcImporter:
                         setattr(container, key, val)
                 self.logger.info('Successful import: %s', fname)
                 return container
-        except (IOError, OSError):
+        except (IOError, OSError, FileNotFoundError, UnicodeDecodeError) as error:
+            # File cannot be opened, log and skip
             self.logger.info('File cannot be opened, skipping: %s', fname)
-            return None
+            raise error
         except Exception as error:  # pylint: disable=broad-except
-            self.logger.error('Error loading file %s: %s', fname, error)
+            self.logger.error('Error loading file %s: %s', fname, error, exc_info=True)
             raise error
 
     def _parse_file_gamry(self, fname, fpath):
@@ -133,13 +140,15 @@ class EcImporter:
                     if 'TAG' in line:
                         technique = line[1]
 
-                #next two lines should be header and units
-                header_row = f.readline().split('\t')
-                units_row = f.readline().split('\t')
-                # Grabbing the technique from the metadata, we can use the appropriate container object
+                # With the technique from the metadata, we can use the appropriate container object
                 container_class = self._get_class(technique)
                 container = container_class(fname, fpath, meta_list)
 
+# -- start of data block parsing
+
+                #next two lines should be header and units
+                header_row = f.readline().split('\t')
+                units_row = f.readline().split('\t')
                 coln = {} # identifier to column number dictionary
                 units = {} # identifier to column unit dictionary
                 for i, column_header in enumerate(header_row):
@@ -160,26 +169,30 @@ class EcImporter:
                             assert f.readline().split('\t') == header_row
                             assert f.readline().split('\t') == units_row
                             continue
+                        if 'EXPERIMENTABORTED' in line:
+                            break
                         data_block.append(line.split('\t'))
                         cycle_list.append(ncycle)
-                else: # assuming other types have a single data table
-                    data_block = [line.split('\t') for line in f.readlines()]
-
+                else:  # assuming other types have a single data table
+                    while line := f.readline():
+                        if 'EXPERIMENTABORTED' in line:
+                            break
+                        data_block.append(line.split('\t'))
                 for key, j in coln.items():
-                    container[key] = np.array([line[j] for line in data_block], dtype='float')
+                    container[key] = np.array(
+                    [float(line[j]) if line[j] else np.nan for line in data_block],
+                    dtype='float'
+                )
                 if technique == 'CV':
                     container['cycle'] = np.array(cycle_list, dtype='int')
             container.units = units
             container.parse_meta_gamry()
 
-            #container['realtime'] = np.array(container['time'], dtype=datetime) + container.starttime
             if any(container.curr):
                 container.curr_dens = np.divide(container.curr, container.area)
             return container
         except Exception as error:  # pylint: disable=broad-except
-            error_message = f'-F- {fpath}{fname}\necImporter.parse_file_gamry error\n{error}'
-            self.logger.error(error_message)
-            raise error
+            raise RuntimeError('Error parsing Gamry file') from error
 
     def _parse_file_mpt(self, fname, fpath):
         '''Parse an EC-lab ascii file. 
