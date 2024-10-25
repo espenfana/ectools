@@ -17,7 +17,7 @@ class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
     '''
     # Class variables and constants
-    identifiers = set(None)
+    identifiers = set()
 
     # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
     # naming scheme. The values should be list-like to support multiple different regex identifiers,

@@ -7,7 +7,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
     '''Linear sweep voltammetry file container'''
 
     # Class variables and constants
-    identifiers = {'Linear Sweep Voltammetry', 'LSV'} 
+    identifiers = {'Linear Sweep Voltammetry', 'LSV'}
     column_patterns = {**ElectroChemistry.column_patterns,
         'oxred': (r'ox/red',),
         'cat': (r'cat', r'cathodic'),
