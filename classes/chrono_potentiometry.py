@@ -34,8 +34,14 @@ class ChronoPotentiometry(ElectroChemistry):
         self.curr_step = float()
 
     def plot(self,
-             x='time',
-             y='pot', ax=None, clause=None, hue=None, **kwargs):
+            ax=None,
+            x='time',
+            y='curr',
+            color = 'tab:blue', # color
+            hue=None,
+            clause=None,
+            ax_kws = None,
+            **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
         kws = {'xlabel': f'time ({self.units[x]})',
                 'ylabel': f'E ({self.units[y]})'}

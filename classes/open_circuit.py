@@ -23,7 +23,15 @@ class OpenCircuit(ElectroChemistry):
     #    '''Parse the metadata blocks into attributes'''
     #    super().parse_meta_mpt() # Preprocess the metadata block
 
-    def plot(self,x='time', y='pot', ax=None, clause=None, hue=None, **kwargs):
+    def plot(self,
+            ax=None,
+            x='time',
+            y='curr',
+            color = 'tab:blue', # color
+            hue=None,
+            clause=None,
+            ax_kws = None,
+            **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
         kws = {'xlabel': f'time ({self.units[x]})',
                 'ylabel': f'E_OC ({self.units[y]})'}

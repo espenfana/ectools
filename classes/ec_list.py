@@ -30,18 +30,20 @@ class EcList(List[T], Generic[T]):
 
     def describe(self) -> str:
         '''return a pretty-printable description of EcList contents'''
+        tformat = '%Y-%m-%d %H:%M:%S'
         describe_df = pd.DataFrame(columns=['idx',
                                             'Filename',
                                             'technique',
                                             'started on',
                                             'finished'])
         for i, f in enumerate(self):
+            finished = f.timestamps[-1].strftime(tformat) if len(f.timestamps) > 0 else None
             describe_df.loc[i] = [
                 i,
                 f.fname,
                 f.__class__.__name__,
-                f.starttime.strftime('%Y-%m-%d %H:%M:%S'),
-                f.timestamps[-1].strftime('%Y-%m-%d %H:%M:%S')
+                f.starttime.strftime(tformat),
+                finished
             ]
         return describe_df.to_string(index=False)
 

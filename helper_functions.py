@@ -13,8 +13,8 @@ def filename_parser(_, fname: str) -> dict:
             mcl_number: int"""
     out = {}
     try:
-        value_id = re.search(r'\d{6}_([0-9]+)([A-Za-z]+?)_', fname)
-        value_id_full = re.search(r'(\d{6}_[0-9]+[A-Za-z]+?)_', fname)
+        value_id = re.search(r'\d{6}_([0-9]+)([A-Za-z]*?)_', fname)
+        value_id_full = re.search(r'(\d{6}_[0-9]+[A-Za-z]*?)_', fname)
         value_we_number = re.search(r'WE(\d+)', fname)
         value_temperature = re.search(r'_(\d+)C\.DTA', fname)
         mcl_number = re.search(r'_MCL(\d+)', fname)
@@ -30,3 +30,9 @@ def filename_parser(_, fname: str) -> dict:
     except Exception:  # pylint: disable=broad-except
         pass
     return out
+
+
+if __name__ == '__main__':
+    # Test the filename parser
+    test_fname = '241021_21_MCL23_WE2_CV2_1CO2_750C.DTA'
+    print(filename_parser(None, test_fname))

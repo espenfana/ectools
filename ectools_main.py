@@ -22,7 +22,7 @@ class EcImporter:
         load_file(fpath: str, fname: str):
             Load and parse an electrochemistry file.
     """
-    def __init__(self, fname_parser=None, log_level="ERROR", **kwargs):
+    def __init__(self, fname_parser=None, log_level="WARNING", **kwargs):
         '''
         fname_parser: optional function to parse information from the file name and path.
             Expected to return a dictionary, from which the key-value pairs are added to the 
@@ -111,10 +111,10 @@ class EcImporter:
                         setattr(container, key, val)
                 self.logger.info('Successful import: %s', fname)
                 return container
-        except (IOError, OSError, FileNotFoundError, UnicodeDecodeError) as error:
+        except (IOError, OSError, FileNotFoundError, UnicodeDecodeError):
             # File cannot be opened, log and skip
             self.logger.info('File cannot be opened, skipping: %s', fname)
-            raise error
+            return None
         except Exception as error:  # pylint: disable=broad-except
             self.logger.error('Error loading file %s: %s', fname, error, exc_info=True)
             raise error
