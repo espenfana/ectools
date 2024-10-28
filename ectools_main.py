@@ -192,7 +192,7 @@ class EcImporter:
             container.units = units
             container.parse_meta_gamry()
 
-            if any(container.curr):
+            if np.any(container.curr):
                 container.curr_dens = np.divide(container.curr, container.area)
             return container
         except Exception as error:  # pylint: disable=broad-except

@@ -47,7 +47,7 @@ class EcList(List[T], Generic[T]):
             ]
         return describe_df.to_string(index=False)
 
-    def select(self, fids: list = None, **kwargs) -> 'EcList':
+    def select(self, fids: list = None, sorting = None, **kwargs) -> 'EcList':
         """
         Select files based on a list of file IDs (fids) OR matching any attribute key-value pair.
         Files are selected if they match any of the file IDs or any of the key-value pairs.
@@ -84,6 +84,8 @@ class EcList(List[T], Generic[T]):
         selected_files = sorted([self[i] for i in selected_idx], key=lambda f: f.fname, reverse=False)
         eclist_out = EcList(fpath=self.fpath)
         eclist_out.extend(selected_files)
+        if sorting:
+            eclist_out.sort(key=lambda f: getattr(f, sorting), reverse=False)
         return eclist_out
 
     def _generate_fid_idx(self):

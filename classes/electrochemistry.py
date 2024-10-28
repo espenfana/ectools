@@ -139,15 +139,17 @@ class ElectroChemistry():
             label += f' ({self.units[key]})'
         return label
 
-    def plot_bokeh(self, x='time', y='curr', hue=None): # Added hue parameter
+    def plot_bokeh(self, x='time', y='curr', hue=None, title=None): # Added hue parameter
         """Plot using Bokeh with global settings."""
         if BOKEH_AVAILABLE:
 
+            title = title or self.fname
             # Use Bokeh settings for figure size, title, and tooltips
+
             p = figure(
                 width=bokeh_conf.figsize[0],  # Use the configured figure size
                 height=bokeh_conf.figsize[1],
-                title=bokeh_conf.title,
+                title=title,
             )
             p.add_tools(self.get_hover_tool())
             if hue is None:
