@@ -52,3 +52,11 @@ try:
 except Exception as e:
     print('Folder loading failed')
     raise e
+
+try:
+    # Selecting a single file from the EcList
+    fsel = fl.filter(mcl_number = 13)
+    fsel.plot()
+except Exception as e:
+    print('Selecting from list failed')
+    raise e

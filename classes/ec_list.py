@@ -1,4 +1,5 @@
 '''ecList class'''
+import warnings
 
 import pandas as pd
 from typing import TypeVar, Generic, List, Dict, Optional
@@ -29,7 +30,17 @@ class EcList(List[T], Generic[T]):
         return {i: item.__class__.__name__ for i, item in enumerate(self)}
 
     def describe(self) -> str:
-        '''return a pretty-printable description of EcList contents'''
+        """
+        Return a pretty-printable description of EcList contents.
+
+        This method generates a DataFrame containing details about each element
+        in the EcList, including the index, filename, technique, start time, 
+        and finish time. The DataFrame is then converted to a string for 
+        pretty-printable output.
+
+        Returns:
+            describe (str): A pretty-printable string representation of the item.
+        """
         tformat = '%Y-%m-%d %H:%M:%S'
         describe_df = pd.DataFrame(columns=['idx',
                                             'Filename',
@@ -47,7 +58,7 @@ class EcList(List[T], Generic[T]):
             ]
         return describe_df.to_string(index=False)
 
-    def select(self, fids: list = None, sorting = None, **kwargs) -> 'EcList':
+    def filter(self, fids: list = None, sorting = None, **kwargs) -> 'EcList':
         """
         Select files based on a list of file IDs (fids) OR matching any attribute key-value pair.
         Files are selected if they match any of the file IDs or any of the key-value pairs.
@@ -65,7 +76,7 @@ class EcList(List[T], Generic[T]):
         if fids:
             fids = [fid.lower().lstrip('0') for fid in fids]  # Normalize fids
             for idx, file in enumerate(self):
-                file_fid = getattr(file, 'fid', None)  # Handle missing 'fid' gracefully
+                file_fid = getattr(file, 'id', None)  # Handle missing 'fid' gracefully
                 if file_fid and file_fid in fids:
                     selected_idx.add(idx)
 
@@ -87,6 +98,43 @@ class EcList(List[T], Generic[T]):
         if sorting:
             eclist_out.sort(key=lambda f: getattr(f, sorting), reverse=False)
         return eclist_out
+    
+    def select(self, fid: str = None, **kwargs) -> T:
+        """
+        Select a single file based on a file ID (fid) OR matching any attribute key-value pair.
+        Files are selected if they match the file ID or any of the key-value pairs.
+
+        Args:
+            fid : A file ID (fid).
+            kwargs: Key-value pairs to filter by file attributes.
+
+        Returns:
+            T: The selected file.
+
+        Raises:
+            ValueError: If no files match the criteria.
+        """
+        selected_files = self.filter(fids=[fid]) if fid else self.filter(**kwargs)
+
+        if len(selected_files) > 1:
+            warnings.warn(
+                f"Multiple files found matching the provided criteria: {kwargs or fid}. "
+                "Returning the first match."
+            )
+
+        # Return the first selected file
+        return selected_files[0]
+
+    def plot(self, group = None, **kwargs):
+        '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
+        print(group)
+        if group and getattr(self[0], group):
+            unique_groups = set([getattr(f, group) for f in self])
+            print(unique_groups)
+            for f in self:
+                f.plot(**kwargs)
+        for f in self:
+            f.plot()
 
     def _generate_fid_idx(self):
         """Generates a dictionary mapping normalized file ID to index."""

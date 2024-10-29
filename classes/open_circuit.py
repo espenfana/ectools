@@ -26,7 +26,7 @@ class OpenCircuit(ElectroChemistry):
     def plot(self,
             ax=None,
             x='time',
-            y='curr',
+            y='pot',
             color = 'tab:blue', # color
             hue=None,
             clause=None,
