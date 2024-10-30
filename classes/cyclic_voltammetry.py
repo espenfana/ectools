@@ -74,9 +74,8 @@ class CyclicVoltammetry(ElectroChemistry):
     ax=None,
     x='pot',
     y='curr',
-    color='tab:blue',
     hue=None,
-    clause=None,
+    mask=None,
     ax_kws=None,
     cycles=None,
     **kwargs):
@@ -84,12 +83,11 @@ class CyclicVoltammetry(ElectroChemistry):
         if hue is True: #default hue
             hue = 'cycle'
         if cycles:
-            clause = np.where(np.logical_and(self['cycle']>=cycles[0],  self['cycle']<=cycles[1]))
+            mask = np.where(np.logical_and(self['cycle']>=cycles[0],  self['cycle']<=cycles[1]))
         ax = super().plot(ax=ax,
                           x=x,
                           y=y,
-                          color=color,
-                          clause=clause,
+                          mask=mask,
                           hue=hue,
                           ax_kws=ax_kws,
                           **kwargs)
@@ -98,15 +96,20 @@ class CyclicVoltammetry(ElectroChemistry):
         return ax
 
     def filter_cycle(self, column: str, cycles: list | int | str) -> np.ndarray:
-        '''
-        Filter column based on a condition.
-        
-        column: Data column to filter
-        cycles:
-            int: Single cycle
-            list: List of cycles (in order)
-            str: Condition, e.g., '<10', '>5', '2:4', 'n:', ':n'
-        '''
+        """
+        Filter a data column based on cycle conditions.
+        Parameters:
+        column (str): The data column to filter.
+        cycles (list | int | str): The cycle condition to filter by.
+            - int: Single cycle number.
+            - list: List of cycle numbers.
+            - str: Condition string, e.g., '<10', '>5', '2:4', 'n:', ':n'.
+        Returns:
+        np.ndarray: Filtered data column.
+        Raises:
+        ValueError: If the condition string is invalid.
+        TypeError: If cycles is not an int, list, or str.
+        """
         if isinstance(cycles, int):
             # Single cycle filtering
             return self[column][self.cycle == cycles]

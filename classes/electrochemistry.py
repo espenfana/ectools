@@ -191,9 +191,8 @@ class ElectroChemistry():
         ax=None, # pyplot axes
         x='time', # key for x axis array
         y='curr', # key for y axis array
-        color = 'tab:blue', # color
         hue = None, # split the plot based on values in a third array
-        clause = None, # logical array to slice the arrays
+        mask = None, # logical array to slice the arrays
         ax_kws = None, # arguments passed to ax.set()
         **kwargs):
         '''Plot data using matplotlib.
@@ -201,12 +200,12 @@ class ElectroChemistry():
         ax_kws = ax_kws or {}
         if not ax:
             _, ax = plt.subplots()
-        if not clause:
-            clause = np.full(self[x].shape, True)
+        if not mask:
+            mask = np.full(self[x].shape, True)
         if hue is True: # no hue set by technique
             hue = False
         if hue:
-            for val in np.unique(self[hue][clause]):
+            for val in np.unique(self[hue][mask]):
                 ax.plot(
                     self[x][self[hue]==val],
                     self[y][self[hue]==val],
@@ -214,9 +213,8 @@ class ElectroChemistry():
                      **kwargs)
         else:
             ax.plot(
-                self[x][clause],
-                self[y][clause],
-                color = color,
+                self[x][mask],
+                self[y][mask],
                 **kwargs)
         if 'xlabel' not in ax_kws:
             ax_kws['xlabel'] = self.makelab(x)
@@ -233,7 +231,7 @@ class ElectroChemistry():
             y_right = 'curr', # key for right y-axis
             color_right = 'tab:red', # color for right y-axis
             hue = None, # split the plot based on values in a third array
-            clause = None, # logical array to slice the arrays
+            mask = None, # logical array to slice the arrays
             ax_left_kws = None, # arguments passed to ax.set()
             ax_right_kws = None, # arguments passed to ax.set()
             **kwargs):
@@ -247,7 +245,7 @@ class ElectroChemistry():
                             y=y_left,
                             color=color_left,
                             hue=hue,
-                            clause=clause,
+                            mask=mask,
                             ax_kws=ax_left_kws,
                             **kwargs)
 
@@ -257,7 +255,7 @@ class ElectroChemistry():
                              y=y_right,
                              color=color_right,
                              hue=hue,
-                             clause=clause,
+                             mask=mask,
                              ax_kws=ax_right_kws,
                              **kwargs)
 

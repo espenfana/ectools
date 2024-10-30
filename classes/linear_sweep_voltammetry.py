@@ -50,9 +50,8 @@ class LinearSweepVoltammetry(ElectroChemistry):
             ax=None,
             x='pot',
             y='curr',
-            color='tab:blue',
             hue=None,
-            clause=None,
+            mask=None,
             ax_kws=None,
             **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
@@ -60,8 +59,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
             ax=ax,
             x=x,
             y=y,
-            color=color,
-            clause=clause,
+            mask=mask,
             hue=hue,
             ax_kws=ax_kws,
             **kwargs)

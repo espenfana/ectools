@@ -1,8 +1,11 @@
 '''ecList class'''
 import warnings
+from collections.abc import Iterable
+from typing import TypeVar, Generic, List, Dict, Optional
 
 import pandas as pd
-from typing import TypeVar, Generic, List, Dict, Optional
+from matplotlib import pyplot as plt
+
 
 from .electrochemistry import ElectroChemistry
 
@@ -84,9 +87,15 @@ class EcList(List[T], Generic[T]):
         if kwargs:
             for idx, file in enumerate(self):
                 for key, value in kwargs.items():
-                    if getattr(file, key, None) == value:
-                        selected_idx.add(idx)
-                        break  # If one key-value pair matches, add file and break
+                    file_attr = getattr(file, key, None)
+                    if isinstance(value, Iterable) and not isinstance(value, str):
+                        if file_attr in value:
+                            selected_idx.add(idx)
+                            break  # If one key-value pair matches, add file and break
+                    else:
+                        if file_attr == value:
+                            selected_idx.add(idx)
+                            break  # If one key-value pair matches, add file and break
 
         if not selected_idx:
             raise ValueError(f"No files found matching the provided criteria: {kwargs or fids}")
@@ -129,12 +138,16 @@ class EcList(List[T], Generic[T]):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
         print(group)
         if group and getattr(self[0], group):
-            unique_groups = set([getattr(f, group) for f in self])
-            print(unique_groups)
+            unique_groups = {getattr(f, group) for f in self}
+            for g in unique_groups:
+                fl_group = self.filter(**{group:g})
+                ncols = len(fl_group)
+                fig, ax = plt.subplots(1, ncols, figsize=(5*ncols, 5))
+                for i, f in enumerate(fl_group):
+                    f.plot(ax=ax[i], **kwargs)
+        else:
             for f in self:
-                f.plot(**kwargs)
-        for f in self:
-            f.plot()
+                f.plot()
 
     def _generate_fid_idx(self):
         """Generates a dictionary mapping normalized file ID to index."""

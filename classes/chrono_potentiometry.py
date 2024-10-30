@@ -37,14 +37,13 @@ class ChronoPotentiometry(ElectroChemistry):
             ax=None,
             x='time',
             y='curr',
-            color = 'tab:blue', # color
             hue=None,
-            clause=None,
+            mask=None,
             ax_kws = None,
             **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
         kws = {'xlabel': f'time ({self.units[x]})',
                 'ylabel': f'E ({self.units[y]})'}
-        ax = super().plot(ax=ax, x=x, y=y, clause=clause, hue=hue, ax_kws = kws, **kwargs)
+        ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws = kws, **kwargs)
         if hue:
             ax.legend(title=hue)
