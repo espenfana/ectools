@@ -142,7 +142,7 @@ class EcList(List[T], Generic[T]):
             for g in unique_groups:
                 fl_group = self.filter(**{group:g})
                 ncols = len(fl_group)
-                fig, ax = plt.subplots(1, ncols, figsize=(5*ncols, 5))
+                _, ax = plt.subplots(1, ncols, figsize=(5*ncols, 5))
                 for i, f in enumerate(fl_group):
                     f.plot(ax=ax[i], **kwargs)
         else:

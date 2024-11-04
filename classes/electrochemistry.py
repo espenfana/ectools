@@ -54,6 +54,8 @@ class ElectroChemistry():
         self.area = float()
         self.starttime = datetime
         self.label = None
+        self._potential_offset = 0.0  # Initialize potential offset to zero
+
     def __getitem__(self, key):
         '''Makes object subscriptable like a dict'''
         return self.__getattribute__(key)
@@ -63,7 +65,9 @@ class ElectroChemistry():
     def __repr__(self):
         return self.__class__.__name__ + 'object from file' + self.fname
 
-    # Class methods
+    # Data parsing methods
+    # ------------------------
+
     def parse_meta_mpt(self):
         '''Parse attributes from the metadata block'''
         #self.colon_delimited = [row.split(':') for row in self.meta]
@@ -129,6 +133,40 @@ class ElectroChemistry():
         timedeltas = np.array([timedelta(seconds=t) for t in self.time])
         self.timestamps = np.array([self.starttime + delta for delta in timedeltas])
 
+    # Data manipulation methods
+    # ------------------------
+
+    def get_data_dict(self) -> dict:
+        """
+        Get all data columns as a dictionary.
+        """
+        return {key: self[key] for key in self.data_columns}
+
+    @property
+    def pot_offset(self):
+        """
+        Return the 'pot' values offset by the potential offset.
+        """
+        return self.pot + self._potential_offset
+
+    def set_pot_offset(self, offset):
+        """
+        Set the potential offset value.
+
+        Args:
+            offset (float): The offset value in volts.
+        """
+        if not isinstance(offset, (int, float)):
+            raise ValueError("Offset must be a numeric value.")
+        if offset < -2 or offset > 2:
+            raise ValueError("Offset must be between -2 and 2 volts.")
+        self._potential_offset = offset
+        if 'pot_offset' not in self.data_columns:
+            self.data_columns.append('pot_offset')
+
+    # Plotting related methods
+    # ------------------------
+
     def makelab(self, key):
         '''Generate an axis label with unit'''
         d = {'curr': 'I ', 'pot': 'E ', 'time': 't', 'curr_dens': 'I\''}
@@ -162,16 +200,9 @@ class ElectroChemistry():
             p.line(x, y,
                 source=ColumnDataSource(self.get_data_dict()),
                 color=color)
-
             show(p)
         else:
             raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
-
-    def get_data_dict(self) -> dict:
-        """
-        Get all data columns as a dictionary.
-        """
-        return {key: self[key] for key in self.data_columns}
     
     def get_hover_tool(self) -> 'HoverTool':
         '''Get hover tooltips for Bokeh plot'''
@@ -269,6 +300,16 @@ class ElectroChemistry():
         self.area = new_area
         self.curr_dens = self.curr / new_area
         self.units['curr_dens'] = f'{self.units["curr"]}/cm²'
+
+    def pot_corrected(self, correction):
+        """
+        Return the potential column corrected by the specified value.
+        Args:
+            correction (float): The correction value in volts.
+        Returns:
+            np.ndarray: Corrected potential values.
+        """
+        return self.pot + correction
 
 def _split_by_length(s, length=20):
     """
