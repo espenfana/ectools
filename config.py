@@ -3,7 +3,7 @@
 from enum import Enum
 
 try:
-    from bokeh.plotting import figure
+    import bokeh
     BOKEH_AVAILABLE = True
 except ImportError:
     BOKEH_AVAILABLE = False

@@ -1,6 +1,7 @@
 '''Parent electrochemistry file class'''
 import re
 from datetime import datetime, timedelta
+from typing import Union, Tuple
 
 import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
@@ -167,6 +168,56 @@ class ElectroChemistry():
         if 'pot_offset' not in self.data_columns:
             self.data_columns.append('pot_offset')
 
+    def slice(self, **criteria: Union[float, Tuple[float, float]]) -> 'ElectroChemistry':
+        """
+        Return a sliced version of the instance based on the specified criteria.
+
+        Args:
+            **criteria: Keyword arguments where keys are data column names and values are
+                        either a single scalar or a tuple specifying (lower, upper) limits.
+
+        Returns:
+            ElectroChemistry: A new instance of the class with sliced data.
+
+        Raises:
+            ValueError: If an invalid data column is specified or if the value is improperly formatted.
+        """
+        # Initialize the mask to all True
+        mask = np.ones(len(self.time), dtype=bool)
+
+        # Iterate over the criteria to build the mask
+        for key, value in criteria.items():
+            if key not in self.data_columns:
+                raise ValueError(f"Data column '{key}' not found in the data columns.")
+
+            data_column = self[key]
+
+            # Determine the type of slicing based on the value
+            if isinstance(value, tuple):
+                if len(value) != 2:
+                    raise ValueError(f"The value for '{key}' must be a single value or a tuple of length 2.")
+                lower, upper = value
+                criterion_mask = (data_column >= lower) & (data_column <= upper)
+            else:
+                criterion_mask = (data_column == value)
+
+            # Combine the masks
+            mask = mask & criterion_mask
+
+        # Create a new, uninitialized instance of the same class
+        sliced_instance = self.__class__.__new__(self.__class__)
+
+        # Copy over all attributes
+        for attr_name, attr_value in self.__dict__.items():
+            if isinstance(attr_value, np.ndarray) and attr_value.shape[0] == mask.shape[0]:
+                # Slice data arrays
+                setattr(sliced_instance, attr_name, attr_value[mask])
+            else:
+                # Copy other attributes directly
+                setattr(sliced_instance, attr_name, attr_value)
+
+        return sliced_instance
+
     # Plotting related methods
     # ------------------------
 
@@ -183,9 +234,6 @@ class ElectroChemistry():
     @requires_bokeh
     def plot_bokeh(self, x='time', y='curr', hue=None, title=None): # Added hue parameter
         """Plot using Bokeh with global settings."""
-        from bokeh.plotting import figure, show
-        from bokeh.models import ColumnDataSource
-        from bokeh.transform import factor_cmap
         title = title or self.fname
         # Use Bokeh settings for figure size, title, and tooltips
 
@@ -210,8 +258,6 @@ class ElectroChemistry():
     @requires_bokeh
     def get_hover_tool(self) -> 'HoverTool':
         '''Get hover tooltips for Bokeh plot'''
-        from bokeh.models import HoverTool # pylint: disable=import-outside-toplevel
-
         hover = HoverTool()
         tooltips = []
         for key in self.data_columns:

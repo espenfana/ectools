@@ -142,6 +142,8 @@ class EcList(List[T], Generic[T]):
                 fl_group = self.filter(**{group:g})
                 ncols = len(fl_group)
                 _, ax = plt.subplots(1, ncols, figsize=(5*ncols, 5), constrained_layout=True)
+                if ncols == 1:
+                    ax = [ax]
                 for i, f in enumerate(fl_group):
                     f.plot(ax=ax[i], **kwargs)
         else:
