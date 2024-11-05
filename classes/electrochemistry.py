@@ -6,12 +6,15 @@ import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
 import numpy as np
 
-from ..config import BOKEH_AVAILABLE, bokeh_conf
-
-if BOKEH_AVAILABLE:
+# Conditional import of Bokeh
+try:
     from bokeh.plotting import figure, show
     from bokeh.models import ColumnDataSource, HoverTool
     from bokeh.transform import factor_cmap
+except ImportError:
+    pass    
+
+from ..config import requires_bokeh, bokeh_conf
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
@@ -177,46 +180,48 @@ class ElectroChemistry():
             label += f' ({self.units[key]})'
         return label
 
+    @requires_bokeh
     def plot_bokeh(self, x='time', y='curr', hue=None, title=None): # Added hue parameter
         """Plot using Bokeh with global settings."""
-        if BOKEH_AVAILABLE:
+        from bokeh.plotting import figure, show
+        from bokeh.models import ColumnDataSource
+        from bokeh.transform import factor_cmap
+        title = title or self.fname
+        # Use Bokeh settings for figure size, title, and tooltips
 
-            title = title or self.fname
-            # Use Bokeh settings for figure size, title, and tooltips
-
-            p = figure(
-                width=bokeh_conf.figsize[0],  # Use the configured figure size
-                height=bokeh_conf.figsize[1],
-                title=title,
-            )
-            p.add_tools(self.get_hover_tool())
-            if hue is None:
-                color = 'blue'  # Default color
-            else:
-                unique_hues = list(set(self[hue]))  # Get unique values in the hue column
-                # Create a color mapper
-                color = factor_cmap(hue, palette='Category10_10', factors=unique_hues)
-
-            p.line(x, y,
-                source=ColumnDataSource(self.get_data_dict()),
-                color=color)
-            show(p)
+        p = figure(
+            width=bokeh_conf.figsize[0],  # Use the configured figure size
+            height=bokeh_conf.figsize[1],
+            title=title,
+        )
+        p.add_tools(self.get_hover_tool())
+        if hue is None:
+            color = 'blue'  # Default color
         else:
-            raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
-    
+            unique_hues = list(set(self[hue]))  # Get unique values in the hue column
+            # Create a color mapper
+            color = factor_cmap(hue, palette='Category10_10', factors=unique_hues)
+
+        p.line(x, y,
+            source=ColumnDataSource(self.get_data_dict()),
+            color=color)
+        show(p)
+
+    @requires_bokeh
     def get_hover_tool(self) -> 'HoverTool':
         '''Get hover tooltips for Bokeh plot'''
-        if BOKEH_AVAILABLE:
-            hover = HoverTool()
-            tooltips = []
-            for key in self.data_columns:
-                if key != 'timestamps':
-                    tooltips.append((self.makelab(key), f'@{key}'))
+        from bokeh.models import HoverTool # pylint: disable=import-outside-toplevel
 
-            tooltips.append(('timestamp', '@timestamps{%F %T}'))
-            hover.tooltips = tooltips
-            hover.formatters = {'@timestamps': 'datetime'}
-            return hover
+        hover = HoverTool()
+        tooltips = []
+        for key in self.data_columns:
+            if key != 'timestamps':
+                tooltips.append((self.makelab(key), f'@{key}'))
+
+        tooltips.append(('timestamp', '@timestamps{%F %T}'))
+        hover.tooltips = tooltips
+        hover.formatters = {'@timestamps': 'datetime'}
+        return hover
 
     def plot(self,
         ax=None, # pyplot axes

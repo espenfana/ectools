@@ -34,12 +34,34 @@ def get_config(key):
 
 ### Bokeh settings ###
 #from bokeh.plotting import ColumnDataSource
-from bokeh.models import HoverTool
+# from bokeh.models import HoverTool
 #from bokeh.io import output_notebook, output_file
 
 
 NOTEBOOK = 'notebook'
 FILE = 'file'
+
+# Decorator definition
+def requires_bokeh(func):
+    """
+    A decorator that checks if Bokeh is available before executing the decorated function.
+    
+    If Bokeh is not available, it raises a RuntimeError.
+
+    Args:
+        func (callable): The function to be decorated.
+
+    Returns:
+        callable: The wrapped function which includes the Bokeh availability check.
+
+    Raises:
+        RuntimeError: If Bokeh is not available.
+    """
+    def wrapper(*args, **kwargs):
+        if not BOKEH_AVAILABLE:
+            raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
+        return func(*args, **kwargs)
+    return wrapper
 
 class BokehSettings:
     """Class to handle Bokeh-specific plotting settings."""
