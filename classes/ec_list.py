@@ -101,13 +101,15 @@ class EcList(List[T], Generic[T]):
             raise ValueError(f"No files found matching the provided criteria: {kwargs or fids}")
 
         # Create a new EcList instance with the selected files
-        selected_files = sorted([self[i] for i in selected_idx], key=lambda f: f.fname, reverse=False)
+        selected_files = sorted([self[i] for i in selected_idx],
+                                key=lambda f: f.fname,
+                                reverse=False)
         eclist_out = EcList(fpath=self.fpath)
         eclist_out.extend(selected_files)
         if sorting:
             eclist_out.sort(key=lambda f: getattr(f, sorting), reverse=False)
         return eclist_out
-    
+
     def select(self, fid: str = None, **kwargs) -> T:
         """
         Select a single file based on a file ID (fid) OR matching any attribute key-value pair.
@@ -134,7 +136,7 @@ class EcList(List[T], Generic[T]):
         # Return the first selected file
         return selected_files[0]
 
-    def plot(self, group = None, **kwargs):
+    def plot(self, group = None, titles='fname', **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
         if group and getattr(self[0], group):
             unique_groups = {getattr(f, group) for f in self}
@@ -146,9 +148,11 @@ class EcList(List[T], Generic[T]):
                     ax = [ax]
                 for i, f in enumerate(fl_group):
                     f.plot(ax=ax[i], **kwargs)
+                    if titles:
+                        ax[i].set_title(getattr(f, titles,''))
         else:
             for f in self:
-                f.plot()
+                f.plot(**kwargs)
 
     def _generate_fid_idx(self):
         """Generates a dictionary mapping normalized file ID to index."""

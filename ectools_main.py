@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 # Relational imports
-from .classes import EcList, ElectroChemistry 
+from .classes import EcList, ElectroChemistry
 # classes is a collection of container objects meant for different methods
 
 class EcImporter:
@@ -22,7 +22,7 @@ class EcImporter:
         load_file(fpath: str, fname: str):
             Load and parse an electrochemistry file.
     """
-    def __init__(self, fname_parser=None, log_level="WARNING", **kwargs):
+    def __init__(self, fname_parser=None, aux_importer=None, log_level="WARNING", **kwargs):
         '''
         fname_parser: optional function to parse information from the file name and path.
             Expected to return a dictionary, from which the key-value pairs are added to the 
@@ -31,6 +31,7 @@ class EcImporter:
         kwargs: key-val pairs added to this instance.
         '''
         self.fname_parser = fname_parser
+        self.aux_importer = aux_importer
         self._setup_logging(log_level)
 
         for key, val in kwargs.items():
@@ -87,6 +88,9 @@ class EcImporter:
             finally:
                 print(f'\rProcessing {i} of {len(flist)}' + '.' * (i % 7 + 1), end='\r')
         print(f'\nProcessed {len(flist)} entries, parsed {len(eclist)}, ignored {ignored}')
+        if self.aux_importer:
+            print(f'Importing auxiliary data from {fpath}')
+            eclist.aux = self.aux_importer(fpath)
         #self.logger.info('Processed %d files, parsed %d', len(flist), len(eclist))
         eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
         return eclist
