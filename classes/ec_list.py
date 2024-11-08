@@ -147,12 +147,16 @@ class EcList(List[T], Generic[T]):
                 if ncols == 1:
                     ax = [ax]
                 for i, f in enumerate(fl_group):
+                    print(f.fname)
                     f.plot(ax=ax[i], **kwargs)
                     if titles:
                         ax[i].set_title(getattr(f, titles,''))
         else:
             for f in self:
-                f.plot(**kwargs)
+                _, ax = plt.subplots(1, 1, figsize=(8, 5), constrained_layout=True)
+                f.plot(ax=ax,**kwargs)
+                if titles:
+                    ax.set_title(getattr(f, titles,''))
 
     def _generate_fid_idx(self):
         """Generates a dictionary mapping normalized file ID to index."""

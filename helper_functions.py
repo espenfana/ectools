@@ -49,7 +49,7 @@ def filename_parser(_, fname: str) -> dict:
 
     return out
 
-def auxiliary_import(fpath: str) -> Dict:
+def mcl_auxiliary_importer(fpath: str) -> Dict:
     """
     Load auxiliary data from JSON, furnace and pico files located in the specified file path.
     Parameters:

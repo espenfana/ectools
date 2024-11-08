@@ -33,9 +33,6 @@ class ChronoAmperometry(ElectroChemistry):
             ax_kws = None,
             **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        if not ax_kws:
-            ax_kws = {'xlabel': f'time ({self.units[x]})',
-                      'ylabel': f'I ({self.units[y]})'}
         ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws = ax_kws, **kwargs)
         if hue:
             ax.legend(title=hue)
