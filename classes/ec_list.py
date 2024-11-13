@@ -5,7 +5,8 @@ from typing import TypeVar, Generic, List, Dict, Optional
 
 import pandas as pd
 from matplotlib import pyplot as plt
-
+from datetime import datetime
+import numpy as np
 
 from .electrochemistry import ElectroChemistry
 
@@ -16,6 +17,7 @@ class EcList(List[T], Generic[T]):
 
     def __init__(self, fpath: Optional[str] = None, **kwargs):
         self.fpath = fpath
+        self.aux = {}
         super().__init__()
         for key, val in kwargs.items():
             setattr(self, key, val)
@@ -51,7 +53,7 @@ class EcList(List[T], Generic[T]):
                                             'started on',
                                             'finished'])
         for i, f in enumerate(self):
-            finished = f.timestamps[-1].strftime(tformat) if len(f.timestamps) > 0 else None
+            finished = f.timestamp[-1].strftime(tformat) if len(f.timestamp) > 0 else None
             describe_df.loc[i] = [
                 i,
                 f.fname,

@@ -7,8 +7,9 @@ import json
 from typing import Dict, Tuple
 
 import pandas as pd
+import numpy as np
 
-def filename_parser(_, fname: str) -> dict:
+def mc_filename_parser(_, fname: str) -> dict:
     """Parse the filename and return attribute dictionary. Expects a format like:
     '240926_15E_MCL19_cswWE1_SCAN-HOLD_LSV_STRIP_CO2_750C.DTA'
         Extracts:
@@ -49,7 +50,7 @@ def filename_parser(_, fname: str) -> dict:
 
     return out
 
-def mcl_auxiliary_importer(fpath: str) -> Dict:
+def mc_auxiliary_importer(fpath: str) -> Dict:
     """
     Load auxiliary data from JSON, furnace and pico files located in the specified file path.
     Parameters:
@@ -67,28 +68,49 @@ def mcl_auxiliary_importer(fpath: str) -> Dict:
     aux = {}
 
     # Read auxiliary json files
-    json_files = glob.glob(os.path.join(auxiliary_path, '**', '*.json'), recursive=True)
-    for file in json_files:
-        with open(file, 'r', encoding='utf-8') as file:
-            json_data = json.load(file)
-            aux.update(json_data)
+    try:
+        json_files = glob.glob(os.path.join(auxiliary_path, '**', '*.json'), recursive=True)
+        for file in json_files:
+            with open(file, 'r', encoding='utf-8') as file:
+                json_data = json.load(file)
+                aux.update(json_data)
+    except Exception as e:
+        raise RuntimeError('Error reading json file')
     
     # Read pico file(s)
-    pico_files = glob.glob(os.path.join(auxiliary_path, '**', '*pico*.csv'), recursive=True)
-    pico_data = pd.concat([pd.read_csv(f'{file}', header=0) for file in pico_files])
-    # Convert the first column to datetime and rename it to 'Timestamp'
-    aux['pico_timestamp'] = pd.to_datetime(pico_data.iloc[:, 0], errors='coerce', unit='s').to_numpy()
-    aux['pico_pot'] = pico_data.iloc[:, 1].to_numpy()
+    aux['pico'] = {}
+    try:
+        pico_files = glob.glob(os.path.join(auxiliary_path, '**', '*pico*.csv'), recursive=True)
+        if pico_files:
+            pico_data = pd.concat([pd.read_csv(f'{file}', header=0) for file in pico_files])
+            # Convert the first column to datetime and rename it to 'Timestamp'
+            aux['pico']['timestamp'] = pd.to_datetime(
+                pico_data.iloc[:, 0], errors='coerce', unit='s').to_numpy()
+            aux['pico']['pot'] = pico_data.iloc[:, 1].to_numpy()
+            if ('mV' in pico_data.columns[1]):
+                aux['pico']['pot'] = aux['pico']['pot'] / 1000
+            elif ('V' in pico_data.columns[1]):
+                aux['pico']['pot'] = aux['pico']['pot']
+            else:
+                raise ValueError('Cannot determine the unit of the potential data')
+        else:
+            aux['pico'] = None
+    except Exception as e:
+        raise RuntimeError('Error reading pico csv file') from e
 
     # Read cascade controller csv file
+    aux['furnace'] = {}
     try:
         cascade_path = os.path.join(auxiliary_path, 'CascadeController')
         if os.path.exists(cascade_path):
-            csv_file = [file for file in cascade_path if file.endswith('.csv')][0]
+            csv_file = [file for file in os.listdir(cascade_path) if file.endswith('.csv')][0]
             cascade_data = pd.read_csv(f'auxiliary/CascadeController/{csv_file}', header=1)
-            aux['cascade_timestamp'] = pd.to_datetime(cascade_data['Date'] + ' ' + cascade_data['Time'], errors='coerce').to_numpy()
-            aux['cascade_celcius'] = cascade_data['Cascade_Controller_PV'].to_numpy()
-            aux['cascade_setpoint'] = cascade_data['Cascade_Controller_Working_SP'].to_numpy()
+            aux['furnace']['cascade_timestamp'] = pd.to_datetime(
+                cascade_data['Date'] + ' ' + cascade_data['Time'], errors='coerce').to_numpy()
+            aux['furnace']['cascade_celcius'] = cascade_data['Cascade_Controller_PV'].to_numpy()
+            aux['furnace']['cascade_setpoint'] = cascade_data['Cascade_Controller_Working_SP'].to_numpy()
+        else:
+            aux['furnace']['cascade_celcius'] = None
     except Exception as e:
         raise RuntimeError('Error reading cascade controller csv file') from e
     
@@ -96,15 +118,29 @@ def mcl_auxiliary_importer(fpath: str) -> Dict:
     try:
         main_path = os.path.join(auxiliary_path, 'MainController')
         if os.path.exists(main_path):
-            csv_file = [file for file in main_path if file.endswith('.csv')][0]
+            csv_file = [file for file in os.listdir(main_path) if file.endswith('.csv')][0]
             main_data = pd.read_csv(f'auxiliary/MainController/{csv_file}', header=1)
-            aux['main_timestamp'] = pd.to_datetime(main_data['Date'] + ' ' + main_data['Time'], errors='coerce').to_numpy()
-            aux['main_celcius'] = main_data['Main_Controller_PV'].to_numpy()
-            aux['main_setpoint'] = main_data['Main_Controller_Working_SP'].to_numpy()
+            aux['furnace']['main_timestamp'] = pd.to_datetime(
+                main_data['Date'] + ' ' + main_data['Time'], errors='coerce').to_numpy()
+            aux['furnace']['main_celcius'] = main_data['Main_Controller_PV'].to_numpy()
+            aux['furnace']['main_setpoint'] = main_data['Main_Controller_Working_SP'].to_numpy()
+        else:
+            aux['furnace']['main_celcius'] = None
     except Exception as e:
         raise RuntimeError('Error reading main controller csv file') from e
+
+    # Assert timestamps are equivalent and use single timestamp
+    if aux['furnace']['cascade_celcius'] is not None and aux['furnace']['main_celcius'] is not None:
+        if not np.array_equal(aux['furnace']['cascade_timestamp'],
+        aux['furnace']['main_timestamp']):
+            raise ValueError('Cascade and Main timestamps do not match')
+        aux['furnace']['timestamp'] = aux['furnace']['cascade_timestamp']
+        del aux['furnace']['cascade_timestamp']
+        del aux['furnace']['main_timestamp']
+
+    return aux
 
 if __name__ == '__main__':
     # Test the filename parser
     TEST_FNAME = '241021_21_MCL23_WE2_CV2_03CO2_750C.DTA'
-    print(filename_parser(None, TEST_FNAME))
+    print(mc_filename_parser(None, TEST_FNAME))

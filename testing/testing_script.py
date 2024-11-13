@@ -9,7 +9,7 @@ if 'CODESPACE_NAME' in os.environ:
 print(f"Current working directory: {os.getcwd()}")
 
 import ectools as ec
-from ectools.helper_functions import filename_parser
+from ectools.helper_functions import mc_filename_parser
 
 # Set the plotter configuration
 ec.set_config('plotter', ec.Plotter.BOKEH)
@@ -25,7 +25,7 @@ print(f"Full path to the file: {full_path}")
 
 # Importing and plotting single file
 try:
-    imp = ec.EcImporter(fname_parser=filename_parser)
+    imp = ec.EcImporter(fname_parser=mc_filename_parser)
     f = imp.load_file(FPATH, FNAME)
     f.plot()
 except Exception as e:
@@ -34,7 +34,7 @@ except Exception as e:
 
 # Testing "file" methods
 try:
-    imp = ec.EcImporter(fname_parser=filename_parser)
+    imp = ec.EcImporter(fname_parser=mc_filename_parser)
     f = imp.load_file(FPATH, FNAME)
     # Check setting in post electrode area
     f.set_area(2)

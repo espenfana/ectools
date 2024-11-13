@@ -15,7 +15,7 @@ try:
 except ImportError:
     pass    
 
-from ..config import requires_bokeh, bokeh_conf
+from ..config import requires_bokeh, bokeh_conf, LOCAL_TZ
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
@@ -47,8 +47,8 @@ class ElectroChemistry():
         self.curr = np.empty(0)
         self.curr_dens = np.empty(0)
         self.pot = np.empty(0)
-        self.timestamps = np.empty(0)
-        self.data_columns = ['time', 'curr', 'curr_dens', 'pot', 'timestamps']
+        self.timestamp = np.empty(0)
+        self.data_columns = ['time', 'curr', 'curr_dens', 'pot', 'timestamp']
         self.units = {}
         self._meta_dict = {}
         # These should remain empty in this class
@@ -57,7 +57,8 @@ class ElectroChemistry():
 
         self.area = float()
         self.starttime = datetime
-        self.label = None
+        self.starttime_toffset = float() # Because pre_step starts at negative time
+        self.label = None # Used for automatic labeling of plots
         self._potential_offset = 0.0  # Initialize potential offset to zero
 
     def __getitem__(self, key):
@@ -100,7 +101,6 @@ class ElectroChemistry():
 
     def parse_meta_gamry(self):
         '''parse attribudes from the metadata block'''
-        self._meta_dict = {}
         i = 0
         while i < len(self.meta):
             line = self.meta[i]
@@ -133,9 +133,14 @@ class ElectroChemistry():
 
         date_str = self._meta_dict['DATE']['value']
         time_str = self._meta_dict['TIME']['value']
-        self.starttime = date_parser.parse(date_str + ' ' + time_str)
-        timedeltas = np.array([timedelta(seconds=t) for t in self.time])
-        self.timestamps = np.array([self.starttime + delta for delta in timedeltas])
+        self.starttime = date_parser.parse(date_str + ' ' + time_str).replace(tzinfo=LOCAL_TZ)
+        if self.time[0] < 0:
+            self.starttime_toffset = float(self._meta_dict['TPRESTEP']['value'])
+        else:
+            self.starttime_toffset = 0
+
+        timedeltas = np.array([timedelta(seconds=t + self.starttime_toffset) for t in self.time])
+        self.timestamp = np.array([self.starttime + delta for delta in timedeltas])
 
     # Data manipulation methods
     # ------------------------
@@ -261,12 +266,12 @@ class ElectroChemistry():
         hover = HoverTool()
         tooltips = []
         for key in self.data_columns:
-            if key != 'timestamps':
+            if key != 'timestamp':
                 tooltips.append((self.makelab(key), f'@{key}'))
 
-        tooltips.append(('timestamp', '@timestamps{%F %T}'))
+        tooltips.append(('timestamp', '@timestamp{%F %T}'))
         hover.tooltips = tooltips
-        hover.formatters = {'@timestamps': 'datetime'}
+        hover.formatters = {'@timestamp': 'datetime'}
         return hover
 
     def plot(self,

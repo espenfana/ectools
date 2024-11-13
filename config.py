@@ -1,6 +1,10 @@
-''' ectools/config.py'''
+''' ectools/config.py
+'''
 
 from enum import Enum
+from zoneinfo import ZoneInfo
+
+LOCAL_TZ = ZoneInfo('Europe/Oslo')
 
 try:
     import bokeh
@@ -9,7 +13,7 @@ except ImportError:
     BOKEH_AVAILABLE = False
 
 class Plotter(Enum):
-    '''Selection for deafault plotting backend in ectools'''
+    """Selection for default plotting backend in ectools"""
     MATPLOTLIB = 'matplotlib'
     BOKEH = 'bokeh'
 
@@ -27,16 +31,16 @@ def set_config(key, value):
             raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
     _config[key] = value
 
-def get_config(key):
-    """Get a configuration parameter."""
+def get_config(key: str) -> any:
+    """Get a configuration parameter.
+    
+    Args:
+        key (str): The configuration parameter key.
+    
+    Returns:
+        any: The value of the configuration parameter.
+    """
     return _config.get(key)
-
-
-### Bokeh settings ###
-#from bokeh.plotting import ColumnDataSource
-# from bokeh.models import HoverTool
-#from bokeh.io import output_notebook, output_file
-
 
 NOTEBOOK = 'notebook'
 FILE = 'file'
@@ -79,20 +83,27 @@ class BokehSettings:
             title=None,
             output=None):
         """Set Bokeh-specific plot settings."""
-        if figsize:
+        if figsize is not None:
             self.figsize = figsize
-        if tooltips:
+        if tooltips is not None:
             self.tooltips = tooltips
-        if title:
+        if title is not None:
             self.title = title
-        if output:
+        if output is not None:
             if output in [NOTEBOOK, FILE]:
                 self.output = output
             else:
                 raise ValueError(f'Output method {output} not recognized')
 
-    def get(self, setting):
-        """Retrieve a specific Bokeh setting."""
+    def get(self, setting: str) -> any:
+        """Retrieve a specific Bokeh setting.
+        
+        Args:
+            setting (str): The name of the setting to retrieve.
+        
+        Returns:
+            any: The value of the specified setting.
+        """
         return getattr(self, setting, None)
 
 # Create an instance of BokehSettings to import

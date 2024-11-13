@@ -1,9 +1,14 @@
 '''ectools_main.py'''
+# Standard library imports
 import logging
 import os
 import re
+from typing import Dict
+
+# Third-party imports
 import numpy as np
 import pandas as pd
+
 
 # Relational imports
 from .classes import EcList, ElectroChemistry
@@ -89,8 +94,16 @@ class EcImporter:
                 print(f'\rProcessing {i} of {len(flist)}' + '.' * (i % 7 + 1), end='\r')
         print(f'\nProcessed {len(flist)} entries, parsed {len(eclist)}, ignored {ignored}')
         if self.aux_importer:
-            print(f'Importing auxiliary data from {fpath}')
-            eclist.aux = self.aux_importer(fpath)
+            try:
+                print(f'Importing auxiliary data from {fpath}')
+                eclist.aux = self.aux_importer(fpath)
+            except RuntimeError as e:
+                self.logger.warning('Error importing auxiliary data: %s', e)
+            try: # Attempt to associate auxiliary data with each file
+                for f in eclist:
+                    f.aux = self._associate_auxiliary_data(eclist.aux, f)
+            except Exception as e:
+                self.logger.error('Error associating auxiliary data: %s', e)
         #self.logger.info('Processed %d files, parsed %d', len(flist), len(eclist))
         eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
         return eclist
@@ -202,7 +215,7 @@ class EcImporter:
         except Exception as error:  # pylint: disable=broad-except
             raise RuntimeError('Error parsing Gamry file') from error
 
-    def _parse_file_mpt(self, fname, fpath):
+    def _parse_file_mpt(self, fname, fpath): # Untested in new ectools
         '''Parse an EC-lab ascii file. 
         Returns a custom electrochemistry container object container object'''
         try:
@@ -258,8 +271,16 @@ class EcImporter:
             self.logger.error(error_message)
             raise error
 
-    def _get_class(self, ident: str):
-        '''Tries to match the identifier with the container classes available.'''
+    def _get_class(self, ident: str) -> ElectroChemistry:
+        '''
+        Tries to match the identifier with the container classes available.
+        
+        Parameters:
+            ident (str): The identifier string to match with container classes.
+        
+        Returns:
+            ElectroChemistry: The matched container class or the default ElectroChemistry class.
+        '''
         if ident is None:
             return ElectroChemistry
         for child in ElectroChemistry.__subclasses__():
@@ -267,3 +288,22 @@ class EcImporter:
                 if re.match(class_ident, ident):
                     return child
         return ElectroChemistry  # If no identifier is matched, return ElectroChemistry class
+
+    def _associate_auxiliary_data(self, aux, f) -> Dict:
+        '''Associate aux data with a file time span'''
+        tstart = np.datetime64(f.timestamp[0])
+        tend = np.datetime64(f.timestamp[-1])
+        faux = {'pico': {}, 'furnace': {}}
+
+        pico_mask = (aux['pico']['timestamp'] >= tstart) & (aux['pico']['timestamp'] <= tend)
+
+        for key, values in aux['pico'].items():
+            faux['pico'][key] = values[pico_mask]
+        faux['pico']['time'] = (faux['pico']['timestamp'] - tstart).astype('timedelta64[s]').astype(float) - f.starttime_toffset
+        
+        furnace_mask = (aux['furnace']['timestamp'] >= tstart) & (aux['furnace']['timestamp'] <= tend)
+        for key, values in aux['furnace'].items():
+            faux['furnace'][key] = values[furnace_mask]
+        faux['furnace']['time'] = (faux['furnace']['timestamp'] - tstart).astype('timedelta64[s]').astype(float)
+
+        return faux
