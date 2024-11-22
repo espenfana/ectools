@@ -17,7 +17,7 @@ class EcList(List[T], Generic[T]):
 
     def __init__(self, fpath: Optional[str] = None, **kwargs):
         self.fpath = fpath
-        self.aux = {}
+        self.aux = {'pico': {}, 'furnace': {}}
         super().__init__()
         for key, val in kwargs.items():
             setattr(self, key, val)
@@ -139,7 +139,7 @@ class EcList(List[T], Generic[T]):
         return selected_files[0]
 
     def plot(self, group = None, titles='fname', **kwargs):
-        '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
+        '''Plot data using matplotlib. Any kwargs are passed along to f.plot()'''
         if group and getattr(self[0], group):
             unique_groups = {getattr(f, group) for f in self}
             for g in unique_groups:
@@ -149,7 +149,6 @@ class EcList(List[T], Generic[T]):
                 if ncols == 1:
                     ax = [ax]
                 for i, f in enumerate(fl_group):
-                    print(f.fname)
                     f.plot(ax=ax[i], **kwargs)
                     if titles:
                         ax[i].set_title(getattr(f, titles,''))

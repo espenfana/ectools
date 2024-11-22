@@ -67,7 +67,7 @@ class EcImporter:
         console_handler.setLevel(log_levels.get(log_level.upper(), logging.ERROR))
 
         # Create formatters and add them to handlers
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s')
         console_handler.setFormatter(formatter)
 
         # Add handlers to the logger
@@ -95,15 +95,17 @@ class EcImporter:
         print(f'\nProcessed {len(flist)} entries, parsed {len(eclist)}, ignored {ignored}')
         if self.aux_importer:
             try:
-                print(f'Importing auxiliary data from {fpath}')
+                print('Importing auxiliary data...')
                 eclist.aux = self.aux_importer(fpath)
             except RuntimeError as e:
                 self.logger.warning('Error importing auxiliary data: %s', e)
-            try: # Attempt to associate auxiliary data with each file
-                for f in eclist:
-                    f.aux = self._associate_auxiliary_data(eclist.aux, f)
-            except Exception as e:
-                self.logger.error('Error associating auxiliary data: %s', e)
+                eclist.aux = None
+            if eclist.aux is not None:
+                try: # Attempt to associate auxiliary data with each file
+                    for f in eclist:
+                        f.aux = self._associate_auxiliary_data(eclist.aux, f)
+                except Exception:
+                    self.logger.exception('Error associating auxiliary data')
         #self.logger.info('Processed %d files, parsed %d', len(flist), len(eclist))
         eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
         return eclist
@@ -291,19 +293,62 @@ class EcImporter:
 
     def _associate_auxiliary_data(self, aux, f) -> Dict:
         '''Associate aux data with a file time span'''
+        # Convert start and end timestamps
         tstart = np.datetime64(f.timestamp[0])
         tend = np.datetime64(f.timestamp[-1])
+
+        # Initialize the faux dictionary with empty sub-dictionaries
         faux = {'pico': {}, 'furnace': {}}
 
-        pico_mask = (aux['pico']['timestamp'] >= tstart) & (aux['pico']['timestamp'] <= tend)
+        # Process Pico Data if Available
+        if 'pico' in aux:
+            pico_data = aux['pico']
+            if 'timestamp' in pico_data and pico_data['timestamp'] is not None:
+                try:
+                    # Create a mask for data within the time span
+                    pico_mask = (pico_data['timestamp'] >= tstart) & (pico_data['timestamp'] <= tend)
 
-        for key, values in aux['pico'].items():
-            faux['pico'][key] = values[pico_mask]
-        faux['pico']['time'] = (faux['pico']['timestamp'] - tstart).astype('timedelta64[s]').astype(float) - f.starttime_toffset
-        
-        furnace_mask = (aux['furnace']['timestamp'] >= tstart) & (aux['furnace']['timestamp'] <= tend)
-        for key, values in aux['furnace'].items():
-            faux['furnace'][key] = values[furnace_mask]
-        faux['furnace']['time'] = (faux['furnace']['timestamp'] - tstart).astype('timedelta64[s]').astype(float)
+                    # Apply the mask to each key in pico data
+                    for key, values in pico_data.items():
+                        if isinstance(values, np.ndarray):
+                            faux['pico'][key] = values[pico_mask]
+                        else:
+                            self.logger.warning('Expected numpy array for key "%s" in pico data.', key)
+                    
+                    # Calculate additional fields
+                    faux['pico']['time'] = (faux['pico']['timestamp'] - tstart).astype('timedelta64[ms]').astype(float) / 1000.0 - f.starttime_toffset
+                    faux['pico']['counter_pot'] = np.interp(faux['pico']['time'], f.time, f.pot) - faux['pico']['pot']
+                except Exception as e:
+                    self.logger.error('Error processing pico data: %s', e)
+                    self.logger.debug('Exception details:', exc_info=True)
+            else:
+                self.logger.warning('Pico data is missing the "timestamp" key or it is None.')
+        else:
+            self.logger.warning('No pico data available in auxiliary data.')
+
+        # Process Furnace Data if Available
+        if aux.get('furnace') is not None:
+            furnace_data = aux['furnace']
+            if 'timestamp' in furnace_data and furnace_data['timestamp'] is not None:
+                try:
+                    # Create a mask for data within the time span
+                    furnace_mask = (furnace_data['timestamp'] >= tstart) & (furnace_data['timestamp'] <= tend)
+
+                    # Apply the mask to each key in furnace data
+                    for key, values in furnace_data.items():
+                        if isinstance(values, np.ndarray):
+                            faux['furnace'][key] = values[furnace_mask]
+                        else:
+                            self.logger.info('Expected numpy array for key "%s" in furnace data.', key)
+
+                    # Calculate additional fields
+                    faux['furnace']['time'] = (faux['furnace']['timestamp'] - tstart).astype('timedelta64[s]').astype(float)
+                except Exception as e:
+                    self.logger.error('Error processing furnace data: %s', e)
+                    self.logger.debug('Exception details:', exc_info=True)
+            else:
+                self.logger.info('Furnace data is missing the "timestamp" key or it is None.')
+        else:
+            self.logger.info('No furnace data available in auxiliary data.')
 
         return faux

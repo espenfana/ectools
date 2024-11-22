@@ -1,7 +1,9 @@
 '''Parent electrochemistry file class'''
+
 import re
 from datetime import datetime, timedelta
 from typing import Union, Tuple
+import warnings
 
 import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
@@ -13,7 +15,7 @@ try:
     from bokeh.models import ColumnDataSource, HoverTool
     from bokeh.transform import factor_cmap
 except ImportError:
-    pass    
+    pass
 
 from ..config import requires_bokeh, bokeh_conf, LOCAL_TZ
 
@@ -54,7 +56,7 @@ class ElectroChemistry():
         # These should remain empty in this class
         #self.cycle = np.empty(0)
         #self.oxred = np.empty(0)
-
+        self.aux = {'pico': {}, 'furnace': {}} # Auxiliary data
         self.area = float()
         self.starttime = datetime
         self.starttime_toffset = float() # Because pre_step starts at negative time
@@ -221,6 +223,12 @@ class ElectroChemistry():
                 # Copy other attributes directly
                 setattr(sliced_instance, attr_name, attr_value)
 
+        # Configure auxiliary channels
+        # Warning: auxiliary data handling not generalized
+        if 'pico' in self.aux:
+
+            sliced_instance.aux['pico'] = {key: value[mask] for key, value in self.aux['pico'].items()}
+
         return sliced_instance
 
     # Plotting related methods
@@ -280,11 +288,16 @@ class ElectroChemistry():
         y='curr', # key for y axis array
         hue = None, # split the plot based on values in a third array
         mask = None, # logical array to slice the arrays
+        add_aux_cell = False, # add auxiliary cell potential
+        add_aux_counter = False, # add auxiliary counter potential
         ax_kws = None, # arguments passed to ax.set()
         **kwargs):
         '''Plot data using matplotlib.
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
         ax_kws = ax_kws or {}
+        if x not in ('time', 'timestamp'):
+            add_aux_cell = False
+            add_aux_counter = False
         if not ax:
             _, ax = plt.subplots()
         if not mask:
@@ -303,11 +316,32 @@ class ElectroChemistry():
                 self[x][mask],
                 self[y][mask],
                 **kwargs)
+        if add_aux_cell:
+            if self.aux['pico'][x].shape[0] > 0:
+                last_color = ax.lines[-1].get_color()
+                ax.plot(
+                    self.aux['pico'][x],
+                    self.aux['pico']['pot'],
+                    label='Cell potential',
+                    color=last_color, alpha=0.5)
+            else:
+                warnings.warn('No auxiliary cell potential data found')
+        if add_aux_counter:
+            if self.aux['pico'][x].shape[0] > 0:
+                last_color = ax.lines[-1].get_color()
+                ax.plot(
+                    self.aux['pico'][x],
+                    self.aux['pico']['counter_pot'],
+                    label='Counter potential',
+                    color=last_color, alpha=0.5)
+            else:
+                warnings.warn('No auxiliary counter potential data found')
         if 'xlabel' not in ax_kws:
             ax_kws['xlabel'] = self.makelab(x)
         if 'ylabel' not in ax_kws:
             ax_kws['ylabel'] = self.makelab(y)
         ax.set(**ax_kws) # Set axes properties, such as xlabel etc.
+        ax.legend()
         return ax
 
     def plotyy(self,
