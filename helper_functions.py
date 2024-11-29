@@ -110,16 +110,13 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
     try:
         pico_files = glob.glob(os.path.join(auxiliary_path, '**', '*pico*.csv'), recursive=True)
         if pico_files:
-            print(pico_files)
             pico_data = pd.concat([pd.read_csv(f'{file}', header=0) for file in pico_files])
             # Note: this will break if the data columns have different names (e.g. one is last 
             # and one is ave)
             # Convert the first column to datetime and rename it to 'Timestamp'
             aux['pico']['timestamp'] = pd.to_datetime(
                 pico_data.iloc[:, 0], errors='coerce', unit='s').to_numpy()
-            print(pico_data.iloc[:, 1])
             aux['pico']['pot'] = pico_data.iloc[:, 1].to_numpy()
-            print(aux['pico']['pot'])
             if ('mV' in pico_data.columns[1]):
                 aux['pico']['pot'] = aux['pico']['pot'] / 1000
             elif ('V' in pico_data.columns[1]):

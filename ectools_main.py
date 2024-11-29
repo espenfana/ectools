@@ -128,6 +128,7 @@ class EcImporter:
                     fname_dict = self.fname_parser(fpath, fname)
                     for key, val in fname_dict.items():
                         setattr(container, key, val)
+                container.label = getattr(container, 'id_full', fname)
                 self.logger.info('Successful import: %s', fname)
                 return container
         except (IOError, OSError, FileNotFoundError, UnicodeDecodeError):
@@ -146,14 +147,18 @@ class EcImporter:
             with open(os.path.join(fpath, fname), encoding="utf-8") as f:
                 # Open the file to read the first lines
                 technique = None
+                ocv_delay_time = 0
                 while line := f.readline():
                     if line == "": # at EOF, readline() will return an empty string
                         raise RuntimeError('No TABLE detected')
                     line = line.rstrip().split('\t')
                     if 'TABLE' in line:
                         if 'OCVCURVE' in line: # TODO add saving of OCP curve
-                            num_lines = int(line[-1])
-                            f.readlines(num_lines)
+                            num_lines = int(line[-1]) + 2 # 2 header lines
+                            ocv_lines = [f.readline() for _ in range(num_lines)]
+                            last_line = ocv_lines[-1].strip().split('\t')
+                            self.logger.debug(last_line)
+                            ocv_delay_time = float(last_line[1])
                         else:
                             break
                     meta_list.append(line)
@@ -164,6 +169,7 @@ class EcImporter:
                 container_class = self._get_class(technique)
                 container = container_class(fname, fpath, meta_list)
 
+                container.ocv_delay_time = ocv_delay_time
 # -- start of data block parsing
 
                 #next two lines should be header and units
@@ -218,7 +224,9 @@ class EcImporter:
             raise RuntimeError('Error parsing Gamry file') from error
 
     def _parse_file_mpt(self, fname, fpath): # Untested in new ectools
-        '''Parse an EC-lab ascii file. 
+        '''
+        Not tested in new ectools
+        Parse an EC-lab ascii file. 
         Returns a custom electrochemistry container object container object'''
         try:
             meta_list = []
@@ -304,20 +312,16 @@ class EcImporter:
         if 'pico' in aux:
             pico_data = aux['pico']
             if 'timestamp' in pico_data and pico_data['timestamp'] is not None:
+                # TODO Edge case: partial match of timestamps?
                 try:
-                    # Create a mask for data within the time span
-                    pico_mask = (pico_data['timestamp'] >= tstart) & (pico_data['timestamp'] <= tend)
-
-                    # Apply the mask to each key in pico data
-                    for key, values in pico_data.items():
-                        if isinstance(values, np.ndarray):
-                            faux['pico'][key] = values[pico_mask]
-                        else:
-                            self.logger.warning('Expected numpy array for key "%s" in pico data.', key)
-                    
-                    # Calculate additional fields
-                    faux['pico']['time'] = (faux['pico']['timestamp'] - tstart).astype('timedelta64[ms]').astype(float) / 1000.0 - f.starttime_toffset
-                    faux['pico']['counter_pot'] = np.interp(faux['pico']['time'], f.time, f.pot) - faux['pico']['pot']
+                    ts_pandas = pd.to_datetime(f.timestamp)
+                    picots_pandas = pd.to_datetime(pico_data['timestamp'])
+                    faux['pico']['pot'] = np.interp(ts_pandas, picots_pandas, pico_data['pot'])
+                    faux['pico']['time'] = f.time
+                    faux['pico']['timestamp'] = f.timestamp
+                    faux['pico']['counter_pot'] = f.pot - faux['pico']['pot']
+                    self.logger.debug('Pico data associated with file %s', f.fname)
+                    self.logger.debug('Column lengths: %s, %s', len(faux['pico']['pot']), len(f.time))
                 except Exception as e:
                     self.logger.error('Error processing pico data: %s', e)
                     self.logger.debug('Exception details:', exc_info=True)
@@ -328,6 +332,7 @@ class EcImporter:
 
         # Process Furnace Data if Available
         if aux.get('furnace') is not None:
+            
             furnace_data = aux['furnace']
             if 'timestamp' in furnace_data and furnace_data['timestamp'] is not None:
                 try:

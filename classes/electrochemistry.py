@@ -136,11 +136,12 @@ class ElectroChemistry():
         date_str = self._meta_dict['DATE']['value']
         time_str = self._meta_dict['TIME']['value']
         self.starttime = date_parser.parse(date_str + ' ' + time_str).replace(tzinfo=LOCAL_TZ)
+        # Absulute time calculation. Needs to account for (1) pre step and (2) ocv delay time
         if self.time[0] < 0:
             self.starttime_toffset = float(self._meta_dict['TPRESTEP']['value'])
         else:
             self.starttime_toffset = 0
-
+        self.starttime_toffset += float(getattr(self, 'ocv_delay_time', 0))
         timedeltas = np.array([timedelta(seconds=t + self.starttime_toffset) for t in self.time])
         self.timestamp = np.array([self.starttime + delta for delta in timedeltas])
 
@@ -221,14 +222,23 @@ class ElectroChemistry():
                 setattr(sliced_instance, attr_name, attr_value[mask])
             else:
                 # Copy other attributes directly
+                if attr_name == 'aux':
+                    continue
                 setattr(sliced_instance, attr_name, attr_value)
 
         # Configure auxiliary channels
         # Warning: auxiliary data handling not generalized
-        if 'pico' in self.aux:
-
-            sliced_instance.aux['pico'] = {key: value[mask] for key, value in self.aux['pico'].items()}
-
+        if self.aux is not None:
+            sliced_instance.aux = {}
+            for attr_name, attr_value in self.aux.items():
+                if attr_name == 'pico':
+                    sliced_instance.aux['pico'] = {key: value[mask] for key, value in attr_value.items()}
+                elif attr_name == 'furnace': # Furnace data not interpolated to common time axis
+                    sliced_instance.aux['furnace'] = {key: value for key, value in attr_value.items()}
+                else:
+                    sliced_instance.aux[attr_name] = attr_value
+        else:
+            sliced_instance.aux = None
         return sliced_instance
 
     # Plotting related methods
@@ -312,12 +322,14 @@ class ElectroChemistry():
                     label = str(val),
                      **kwargs)
         else:
+            if 'label' not in kwargs:
+                kwargs['label'] = self.label
             ax.plot(
                 self[x][mask],
                 self[y][mask],
                 **kwargs)
         if add_aux_cell:
-            if self.aux['pico'][x].shape[0] > 0:
+            if np.any(np.isfinite(self.aux['pico']['pot'])):
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
                     self.aux['pico'][x],
@@ -327,7 +339,7 @@ class ElectroChemistry():
             else:
                 warnings.warn('No auxiliary cell potential data found')
         if add_aux_counter:
-            if self.aux['pico'][x].shape[0] > 0:
+            if np.any(np.isfinite(self.aux['pico']['pot'])):
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
                     self.aux['pico'][x],
@@ -356,7 +368,8 @@ class ElectroChemistry():
             ax_left_kws = None, # arguments passed to ax.set()
             ax_right_kws = None, # arguments passed to ax.set()
             **kwargs):
-        '''Plot data with two y-scales using matplotlib. 
+        ''' Possibly not implemented!
+        Plot data with two y-scales using matplotlib. 
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
         if not fig:
             fig = plt.figure()
