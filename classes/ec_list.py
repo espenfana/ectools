@@ -62,6 +62,44 @@ class EcList(List[T], Generic[T]):
                 finished
             ]
         return describe_df.to_string(index=False)
+    
+    def area_corrections(self, corrections_map: Optional[Dict[str, Dict[str, float]]] = None) -> None:
+        """
+        Apply area corrections to the files in the EcList.
+
+        This method modifies the `area` attribute of the `ElectroChemistry` objects in the list.
+
+        Args:
+            corrections_map (Optional[Dict[str, Dict[str, float]]]): A dictionary containing area correction
+                values. If not provided, the method will use the 'electrode_corrections' from the aux attribute.
+
+        Raises:
+            ValueError: If no area corrections are found or if an invalid electrode format is encountered.
+        """
+
+        if corrections_map:
+            # If corrections_map is provided, it will be used directly.
+            pass
+        elif 'electrode_corrections' in self.aux:
+            corrections_map = self.aux['electrode_corrections']
+        else:
+            raise ValueError('No area corrections found in aux, and none provided')
+        try:
+            print(corrections_map)
+            for electrode, corr in corrections_map.items():
+                if electrode.startswith("WE") and electrode[2:].isdigit():
+                    electrode_number = int(electrode[2:])
+                else:
+                    raise ValueError(f"Invalid electrode format: {electrode}")
+                length = corr['length_mm']/10 # Convert to cm
+                d = corr['width_mm']/10 # Convert to cm
+                area = np.pi * d * length + np.pi * (d/2)**2 # Area of end of cylinder
+                print(f"Setting electrode {electrode_number} area: {area} cm^2")
+                for f in self:
+                    if f.we_number == electrode_number:
+                        f.set_area(area)
+        except Exception as e:
+            raise ValueError(f"Error applying area corrections: {str(e)}") from e
 
     def filter(self, fids: list = None, sorting = None, **kwargs) -> 'EcList':
         """

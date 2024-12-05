@@ -256,7 +256,6 @@ def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True):
             text_out.append("No oxide samples recorder, or json file not properly formatted")
     for line in text_out:
         print(line)
-    
     if furnace and pico:
         from bokeh.plotting import figure, show, output_notebook
         from bokeh.models import ColumnDataSource, HoverTool, DataRange1d, LinearAxis

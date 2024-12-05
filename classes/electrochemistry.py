@@ -62,6 +62,7 @@ class ElectroChemistry():
         self.starttime_toffset = float() # Because pre_step starts at negative time
         self.label = None # Used for automatic labeling of plots
         self._potential_offset = 0.0  # Initialize potential offset to zero
+        self.we_number = None # Working electrode number
 
     def __getitem__(self, key):
         '''Makes object subscriptable like a dict'''
@@ -401,8 +402,10 @@ class ElectroChemistry():
         '''Set new value for area and recalculate current density
             new_area: float [cm²]'''
         self.area = new_area
-        self.curr_dens = self.curr / new_area
-        self.units['curr_dens'] = f'{self.units["curr"]}/cm²'
+        if self.curr.size > 0:
+            self.curr_dens = self.curr / new_area
+            self.units['curr_dens'] = f'{self.units["curr"]}/cm²'
+
 
     def pot_corrected(self, correction):
         """
