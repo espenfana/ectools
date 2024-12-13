@@ -91,7 +91,7 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
     
     # Process 'oxide' samples if present in JSON data
     if 'oxide' in aux and 'salt_sampled' in aux:
-        aux['oxide_measurents'] = aux['oxide']
+        aux['oxide_measurements'] = aux['oxide']
         oxide = []
         salt_sampled = aux['salt_sampled']
         
@@ -163,7 +163,12 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
     if aux['furnace']['cascade_celsius'] is not None and aux['furnace']['main_celsius'] is not None:
         if not np.array_equal(aux['furnace']['cascade_timestamp'],
         aux['furnace']['main_timestamp']):
-            raise ValueError('Cascade and Main timestamps do not match')
+            aux['furnace']['cascade_celsius'] = np.interp(
+                aux['furnace']['main_timestamp'].astype(np.int64) // 10**9,
+                aux['furnace']['cascade_timestamp'].astype(np.int64) // 10**9,
+                aux['furnace']['cascade_celsius']
+            )
+            raise ValueError(f'Cascade ({len(aux['furnace']['cascade_timestamp'])}) and Main ({len(aux['furnace']['main_timestamp'])}) timestamps do not match')
         aux['furnace']['timestamp'] = aux['furnace']['cascade_timestamp']
         del aux['furnace']['cascade_timestamp']
         del aux['furnace']['main_timestamp']
@@ -253,7 +258,7 @@ def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True):
                 letter = chr(65 + i)
                 text_out.append(f"{run_id}_{letter}: {sample.mean:.2f} ± {sample.stdev:.2f}, sampled {sample.timestamp}")
         else:
-            text_out.append("No oxide samples recorder, or json file not properly formatted")
+            text_out.append("No oxide samples recorded, or json file not properly formatted")
     for line in text_out:
         print(line)
     if furnace and pico:

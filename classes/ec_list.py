@@ -85,16 +85,17 @@ class EcList(List[T], Generic[T]):
         else:
             raise ValueError('No area corrections found in aux, and none provided')
         try:
-            print(corrections_map)
             for electrode, corr in corrections_map.items():
                 if electrode.startswith("WE") and electrode[2:].isdigit():
                     electrode_number = int(electrode[2:])
                 else:
                     raise ValueError(f"Invalid electrode format: {electrode}")
+                if corr['length_mm'] is None or corr['width_mm'] is None:
+                    continue
                 length = corr['length_mm']/10 # Convert to cm
                 d = corr['width_mm']/10 # Convert to cm
                 area = np.pi * d * length + np.pi * (d/2)**2 # Area of end of cylinder
-                print(f"Setting electrode {electrode_number} area: {area} cm^2")
+                print(f"Setting electrode {electrode_number} area: {area:.3f} cm^2")
                 for f in self:
                     if f.we_number == electrode_number:
                         f.set_area(area)
@@ -152,8 +153,8 @@ class EcList(List[T], Generic[T]):
 
     def select(self, fid: str = None, **kwargs) -> T:
         """
-        Select a single file based on a file ID (fid) OR matching any attribute key-value pair.
-        Files are selected if they match the file ID or any of the key-value pairs.
+        Select a single file based on a file ID (fid) OR matching all attribute key-value pair.
+        Files are selected if they match the file ID or all of the key-value pairs.
 
         Args:
             fid : A file ID (fid).
@@ -165,7 +166,13 @@ class EcList(List[T], Generic[T]):
         Raises:
             ValueError: If no files match the criteria.
         """
-        selected_files = self.filter(fids=[fid]) if fid else self.filter(**kwargs)
+        selected_files = []
+        if fid: 
+            selected_files = self.filter(fids=[fid])
+        elif kwargs:
+            selected_files = self
+            for key, value in kwargs.items():
+                selected_files = selected_files.filter(**{key: value})
 
         if len(selected_files) > 1:
             warnings.warn(
