@@ -18,7 +18,8 @@ class Plotter(Enum):
     BOKEH = 'bokeh'
 
 _config = {
-    'plotter': Plotter.MATPLOTLIB  # default
+    'plotter': Plotter.MATPLOTLIB,  # default
+    'cycle_convension': 'v2' # "v2" (2nd vertex) or "init"  (initial value)
 }
 
 def set_config(key, value):

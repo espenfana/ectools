@@ -25,7 +25,7 @@ class CyclicVoltammetry(ElectroChemistry):
         super().__init__(*args, **kwargs)
         # Data columns
         self.cycle = np.empty(0)
-        self.data_columns.extend(['cycle'])
+        self.data_columns.extend(['cycle', 'cycle_v2', 'cycle_init'])
         # Experiment parameters
         self.scanrate = float()
         self.cycle = float()

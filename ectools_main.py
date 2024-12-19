@@ -12,6 +12,7 @@ import pandas as pd
 
 # Relational imports
 from .classes import EcList, ElectroChemistry
+from .config import get_config
 # classes is a collection of container objects meant for different methods
 
 class EcImporter:
@@ -187,7 +188,7 @@ class EcImporter:
                 data_block = []
                 if technique == 'CV':
                     # gamry CV's require custom handing due to "CURVE"s being separate tables
-                    cycle_list = []
+                    cycle_list_v2 = []
                     ncycle = 1
                     while line := f.readline():
                         if line[:5] == 'CURVE':
@@ -198,7 +199,7 @@ class EcImporter:
                         if 'EXPERIMENTABORTED' in line:
                             break
                         data_block.append(line.split('\t'))
-                        cycle_list.append(ncycle)
+                        cycle_list_v2.append(ncycle)
                 else:  # assuming other types have a single data table
                     while line := f.readline():
                         if 'EXPERIMENTABORTED' in line:
@@ -207,13 +208,53 @@ class EcImporter:
                 
                 if len(data_block) == 0: # Consider filtering out files with empty data blocks
                     self.logger.warning('Data block is empty for file: %s', fname)
+                # Reformat the data block into numpy arrays
                 for key, j in coln.items():
                     container[key] = np.array(
                     [float(line[j]) if line[j] else np.nan for line in data_block],
                     dtype='float'
                 )
                 if technique == 'CV':
-                    container['cycle'] = np.array(cycle_list, dtype='int')
+                    # Add column for sweep direction and cycle number
+                    sweep_dir = np.ones_like(container['pot'])
+                    if len(container['pot']) > 1:
+                        # Determine the sweep direction for the first point
+                        sweep_dir[0] = np.where(container['pot'][1] < container['pot'][0], -1, 1)
+                    # Use np.where for the rest of the points
+                    sweep_dir[1:] = np.where(container['pot'][1:] < container['pot'][:-1], -1, 1)
+                    vertex_indices = np.where(np.diff(sweep_dir) != 0)[0] + 1  # +1 to adjust index after diff
+                    vertex_count = len(vertex_indices)
+                    # Log the total count and indices of vertices
+                    self.logger.debug('Total vertex count: %d, indices %s', vertex_count, vertex_indices.tolist())
+                    # Create column for cycle number (init convention)
+                    init_sweep_dir = sweep_dir[0]
+                    init_pot = container['pot'][0]
+
+                    # Compute adjusted potential differences
+                    delta_pot = (container['pot'] - init_pot) * init_sweep_dir
+
+                    # Find indices where delta_pot crosses zero from negative to positive
+                    crossings = np.where((delta_pot[:-1] < 0) & (delta_pot[1:] >= 0))[0] + 1
+
+                    # Initialize cycle increments array
+                    cycle_increments = np.zeros_like(container['pot'], dtype=int)
+                    cycle_increments[crossings] = 1
+                    cycle_increments[0] = 1  # Start with cycle number 1
+
+                    # Compute cycle numbers by cumulative sum
+                    cycle_numbers = np.cumsum(cycle_increments)
+
+                    # Assign cycle numbers to the container
+                    container['cycle_init'] = cycle_numbers
+                    container['cycle_v2'] = np.array(cycle_list_v2, dtype='int')
+                    self.logger.debug('Cycle numbers: %s', cycle_numbers)
+                    cycle_convension = get_config('cycle_convension')
+                    if cycle_convension == 'v2':
+                        container['cycle'] = container['cycle_v2']
+                    elif cycle_convension == 'init':    
+                        container['cycle'] = container['cycle_init']
+                    else:
+                        raise ValueError(f'Invalid cycle convention: {cycle_convension}')
             container.units = units
             container.parse_meta_gamry()
 
