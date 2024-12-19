@@ -212,6 +212,8 @@ class ElectroChemistry():
 
             # Combine the masks
             mask = mask & criterion_mask
+            if not np.any(mask):
+                warnings.warn(f"No elements match the slicing criteria: {criteria}. Returning an empty instance.")
 
         # Create a new, uninitialized instance of the same class
         sliced_instance = self.__class__.__new__(self.__class__)
