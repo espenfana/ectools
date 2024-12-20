@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 LOCAL_TZ = ZoneInfo('Europe/Oslo')
 
 try:
-    import bokeh
+    import bokeh # pylint: disable=unused-import
     BOKEH_AVAILABLE = True
 except ImportError:
     BOKEH_AVAILABLE = False

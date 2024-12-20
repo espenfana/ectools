@@ -222,6 +222,7 @@ class EcImporter:
                         sweep_dir[0] = np.where(container['pot'][1] < container['pot'][0], -1, 1)
                     # Use np.where for the rest of the points
                     sweep_dir[1:] = np.where(container['pot'][1:] < container['pot'][:-1], -1, 1)
+                    container['sweep_dir'] = sweep_dir
                     vertex_indices = np.where(np.diff(sweep_dir) != 0)[0] + 1  # +1 to adjust index after diff
                     vertex_count = len(vertex_indices)
                     # Log the total count and indices of vertices
