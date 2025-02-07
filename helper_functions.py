@@ -240,11 +240,8 @@ if __name__ == '__main__':
     print(mc_filename_parser(None, TEST_FNAME))
 
 # ---   Display auxiliary data   --- #
-def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True):
-    """todo"""
-    if not fl.aux:
-        print("No auxiliary data found")
-        return
+def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True, heating_rate=False):
+    """Displays auxiliary data and optional plots for furnace, pico, and heating rate."""
     text_out =  []
     temperature = fl.aux['temperature_celsius']
     co2_percentage = fl.aux['CO2_percent']
@@ -261,87 +258,125 @@ def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True):
             text_out.append("No oxide samples recorded, or json file not properly formatted")
     for line in text_out:
         print(line)
-    if furnace and pico:
-        from bokeh.plotting import figure, show, output_notebook
-        from bokeh.models import ColumnDataSource, HoverTool, DataRange1d, LinearAxis
+    from bokeh.plotting import figure, show, output_notebook
+    from bokeh.models import ColumnDataSource, HoverTool, LinearAxis, Range1d
+    output_notebook()
 
-        # Initialize Bokeh to display plots in the notebook
-        output_notebook()
-        # Assuming fl.aux['furnace'] and fl.aux['pico'] are existing pandas DataFrames
-        # Create copies to avoid modifying the original data
+    # Separate Furnace Plot with Dual y-Axes (Temperature and Heating Rate)
+    if furnace and fl.aux.get('furnace') is not None:
         furnace_data = fl.aux['furnace'].copy()
-        pico_data = fl.aux['pico'].copy()
-
-        # Multiply 'pot' by 1000 to convert from V to mV and create a new column
-        pico_data['pot_mV'] = pico_data['pot'] * 1000
         source_furnace = ColumnDataSource(data=furnace_data)
+        p_furnace = figure(title="Furnace Data",
+                           x_axis_label='Time',
+                           x_axis_type='datetime',
+                           width=800,
+                           height=400)
+        # Plot temperature data on left y-axis with pairwise distinct colours:
+        # Thermocouple (cascade_celsius) and its heating rate
+        p_furnace.line(x='timestamp', y='cascade_celsius', source=source_furnace,
+                       legend_label='Thermocouple', line_width=2, color="blue", name='furnace_line')
+        # Plot main temperature if available with a distinct colour
+        if (isinstance(furnace_data, dict) and 'main_celsius' in furnace_data):
+            p_furnace.line(x='timestamp', y='main_celsius', source=source_furnace,
+                           legend_label='Heating Element', line_width=2, color='orange', name='main_line')
+
+        # Compute heating rate for cascade temperature
+        ts = np.array(furnace_data['timestamp'])
+        cascade = np.array(furnace_data['cascade_celsius'])
+        ts_sec = ts.astype("datetime64[s]").astype("int64")
+        dt = np.diff(ts_sec) / 60.0  # minutes
+        d_t = np.diff(cascade)
+        heating_rate = np.concatenate(([np.nan], d_t / dt))
+        furnace_data["heating_rate"] = heating_rate
+
+        # Compute heating rate for main temperature if available
+        if "main_celsius" in furnace_data:
+            main = np.array(furnace_data["main_celsius"])
+            dT_main = np.diff(main)
+            heating_rate_main = np.concatenate(([np.nan], dT_main / dt))
+            furnace_data["heating_rate_main"] = heating_rate_main
+
+        # Update the data source with heating rate data
+        source_furnace.data = furnace_data
+
+        # Add extra y-axis for heating rate with limits
+        p_furnace.extra_y_ranges = {"heating_rate": Range1d(start=-20, end=40)}
+        p_furnace.add_layout(LinearAxis(y_range_name="heating_rate", axis_label="Heating Rate (°C/min)"), 'right')
+        p_furnace.y_range = Range1d(start=-400, end=800)
+        # Plot heating rate data on the right y-axis using distinct colours.
+        p_furnace.line(x='timestamp', y='heating_rate', source=source_furnace,
+                       legend_label="Heating Rate (Cascade)", line_width=2, color="green",
+                       y_range_name="heating_rate", name="rate_line")
+        if "main_celsius" in furnace_data:
+            p_furnace.line(x='timestamp', y='heating_rate_main', source=source_furnace,
+                           legend_label="Heating Rate (Main)", line_width=2, color="red",
+                           y_range_name="heating_rate", name="main_rate_line")
+
+        # Add hover tools for temperature and heating rate lines
+        hover_furnace = HoverTool(renderers=[p_furnace.select_one({'name': 'furnace_line'})],
+                                  tooltips=[
+                                      ("Time", "@timestamp{%F %T}"),
+                                      ("Cascade (°C)", "@cascade_celsius")
+                                  ],
+                                  formatters={'@timestamp': 'datetime'},
+                                  mode='vline')
+        p_furnace.add_tools(hover_furnace)
+
+        hover_rate = HoverTool(renderers=[p_furnace.select_one({"name": "rate_line"})],
+                               tooltips=[
+                                   ("Time", "@timestamp{%F %T}"),
+                                   ("Heating Rate (Cascade °C/min)", "@heating_rate{0.000}")
+                               ],
+                               formatters={"@timestamp": "datetime"},
+                               mode="vline")
+        p_furnace.add_tools(hover_rate)
+
+        if "main_celsius" in furnace_data:
+            hover_main = HoverTool(renderers=[p_furnace.select_one({'name': 'main_line'})],
+                                   tooltips=[
+                                       ("Time", "@timestamp{%F %T}"),
+                                       ("Main (°C)", "@main_celsius")
+                                   ],
+                                   formatters={'@timestamp': 'datetime'},
+                                   mode='vline')
+            p_furnace.add_tools(hover_main)
+
+            hover_main_rate = HoverTool(renderers=[p_furnace.select_one({"name": "main_rate_line"})],
+                                        tooltips=[
+                                            ("Time", "@timestamp{%F %T}"),
+                                            ("Heating Rate (Main °C/min)", "@heating_rate_main{0.000}")
+                                        ],
+                                        formatters={"@timestamp": "datetime"},
+                                        mode="vline")
+            p_furnace.add_tools(hover_main_rate)
+        show(p_furnace)
+    else:
+        print("No furnace data found")
+
+    # Separate Pico Plot; if furnace data exists, align x_range to its timestamp axis.
+    if pico and fl.aux.get('pico') is not None:
+        pico_data = fl.aux['pico'].copy()
+        pico_data['pot_mV'] = pico_data['pot']
+        p_pico = figure(title="Pico Data",
+                        x_axis_label='Time',
+                        x_axis_type='datetime',
+                        width=800,
+                        height=400)
         source_pico = ColumnDataSource(data=pico_data)
-
-        # Create a figure with a shared x-axis
-        p = figure(title="Auxiliary Data",
-                x_axis_label='Time',
-                x_axis_type='datetime',
-                width=800,
-                height=400)
-
-        cascade_line = p.line(x='timestamp', y='cascade_celsius', source=source_furnace, 
-                            legend_label="Temperature", line_width=2, color='blue')
-
-        # Configure left y-axis
-        p.yaxis.axis_label = "Temperature"
-        p.yaxis.axis_label_text_color = "blue"
-        p.yaxis.major_label_text_color = "blue"
-
-        # Add hover tool for Cascade_Controller_PV
-        hover1 = HoverTool(renderers=[cascade_line],
-                        tooltips=[
-                            ("Timestamp", "@timestamp{%F %T}"),
-                            ("Temperature", "@cascade_celsius")
-                        ],
-                        formatters={'@timestamp': 'datetime'})
-        p.add_tools(hover1)
-
-        # Define a new y-range for the right y-axis
-        p.extra_y_ranges = {
-            "pot_range": DataRange1d()
-        }
-
-        # Add the right y-axis associated with the 'pot_range'
-        p.add_layout(LinearAxis(y_range_name="pot_range", axis_label="Cell Potential (V)", 
-                                axis_label_text_color="red", major_label_text_color="red"), 'right')
-
-        # Plot Cell Potential on the right y-axis
-        pot_line = p.line(x='timestamp', y='pot_mV', source=source_pico, 
-                        legend_label="Cell Potential", line_width=2, color='red', y_range_name="pot_range")
-
-        # Add hover tool for Cell Potential
-        hover2 = HoverTool(renderers=[pot_line],
-                        tooltips=[
-                            ("Timestamp", "@timestamp{%F %T}"),
-                            ("Cell Potential (mV)", "@pot_mV")
-                        ],
-                        formatters={'@timestamp': 'datetime'})
-        p.add_tools(hover2)
-
-        # Configure y-axes labels and colors
-        p.yaxis[0].axis_label = "Cascade Controller PV"
-        p.yaxis[0].axis_label_text_color = "blue"
-        p.yaxis[0].major_label_text_color = "blue"
-
-        p.yaxis[1].axis_label = "Cell Potential (mV)"
-        p.yaxis[1].axis_label_text_color = "red"
-        p.yaxis[1].major_label_text_color = "red"
-
-        # Show legend
-        p.legend.location = "top_left"
-        p.legend.click_policy = "hide"  # Optional: allows interactive legend
-
-        # Enhance layout
-        p.xaxis.axis_label_text_font_size = "10pt"
-        p.yaxis.axis_label_text_font_size = "10pt"
-        p.title.text_font_size = "12pt"
-
-        # Show the combined plot
-        show(p)
-    elif furnace or pico:
-        warnings.warn("Not implemented")
+        p_pico.line(x='timestamp', y='pot_mV', source=source_pico,
+                    legend_label='Pico', line_width=2, color='green', name='pico_line')
+        hover_pico = HoverTool(renderers=[p_pico.select_one({'name': 'pico_line'})],
+                               tooltips=[
+                                   ("Time", "@timestamp{%F %T}"),
+                                   ("Pico (mV)", "@pot_mV")
+                               ],
+                               formatters={'@timestamp': 'datetime'},
+                               mode='vline')
+        p_pico.add_tools(hover_pico)
+        p_pico.yaxis.axis_label = "Cell potential (V)"
+        # Align pico x-axis to furnace x-axis if available
+        if furnace and fl.aux.get('furnace') is not None:
+            p_pico.x_range = p_furnace.x_range
+        show(p_pico)
+    else:
+        print("No pico data found")
