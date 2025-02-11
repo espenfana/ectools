@@ -354,19 +354,33 @@ class EcImporter:
         if 'pico' in aux:
             pico_data = aux['pico']
             if 'timestamp' in pico_data and pico_data['timestamp'] is not None:
-                # TODO Edge case: partial match of timestamps?
                 try:
-                    ts_pandas = pd.to_datetime(f.timestamp)
-                    picots_pandas = pd.to_datetime(pico_data['timestamp'])
-                    faux['pico']['pot'] = np.interp(ts_pandas, picots_pandas, pico_data['pot'])
-                    faux['pico']['time'] = f.time
-                    faux['pico']['timestamp'] = f.timestamp
-                    faux['pico']['counter_pot'] = f.pot - faux['pico']['pot']
-                    self.logger.debug('Pico data associated with file %s', f.fname)
-                    self.logger.debug('Column lengths: %s, %s', len(faux['pico']['pot']), len(f.time))
-                except Exception as e:
-                    self.logger.error('Error processing pico data: %s', e)
-                    self.logger.debug('Exception details:', exc_info=True)
+                    ts_file = pd.to_datetime(f.timestamp, utc=True).tz_convert(None)
+                    pico_ts = pd.to_datetime(pico_data['timestamp'], utc=True).tz_convert(None)
+                    # Determine file indices that fall within the pico timestamp range.
+                    valid_mask = (ts_file >= pico_ts.min()) & (ts_file <= pico_ts.max())
+                    ts_overlap = ts_file[valid_mask]
+                    # Interpolate without extrapolating outside the pico range.
+                    interp_pot = np.interp(
+                    ts_overlap.astype('int64'),
+                    pico_ts.astype('int64'),
+                    pico_data['pot'],
+                    left=np.nan,
+                    right=np.nan
+                    )
+                    # Use the overlapping indices for all pico-related arrays.
+                    faux['pico']['pot'] = interp_pot
+                    faux['pico']['time'] = np.array(f.time)[valid_mask]
+                    faux['pico']['timestamp'] = np.array(f.timestamp)[valid_mask]
+                    faux['pico']['counter_pot'] = np.array(f.pot)[valid_mask] - interp_pot
+                    if not valid_mask.any():
+                        self.logger.debug('No matching pico data found for file %s', f.fname)
+                    else:
+                        self.logger.debug('Pico data associated with file %s', f.fname)
+                        self.logger.debug('Column lengths: %d', len(interp_pot))
+                except (ValueError, KeyError, TypeError) as e:
+                        self.logger.error('Error processing pico data: %s', e)
+                        self.logger.debug('Exception details:', exc_info=True)
             else:
                 self.logger.warning('Pico data is missing the "timestamp" key or it is None.')
         else:

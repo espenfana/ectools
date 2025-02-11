@@ -168,7 +168,7 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
                 aux['furnace']['cascade_timestamp'].astype(np.int64) // 10**9,
                 aux['furnace']['cascade_celsius']
             )
-            raise ValueError(f'Cascade ({len(aux['furnace']['cascade_timestamp'])}) and Main ({len(aux['furnace']['main_timestamp'])}) timestamps do not match')
+            #raise ValueError(f"Cascade ({len(aux['furnace']['cascade_timestamp'])}) and Main ({len(aux['furnace']['main_timestamp'])}) timestamps do not match (folder: {auxiliary_path})")
         aux['furnace']['timestamp'] = aux['furnace']['cascade_timestamp']
         del aux['furnace']['cascade_timestamp']
         del aux['furnace']['main_timestamp']
