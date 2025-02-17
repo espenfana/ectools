@@ -105,15 +105,16 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
         aux['oxide'] = oxide
     else:
         aux['oxide_samples'] = []
+    
     # Read pico file(s)
-    aux['pico'] = {}
     try:
         pico_files = glob.glob(os.path.join(auxiliary_path, '**', '*pico*.csv'), recursive=True)
         if pico_files:
-            pico_data = pd.concat([pd.read_csv(f'{file}', header=0) for file in pico_files])
+            pico_data = pd.concat([pd.read_csv(file, header=0) for file in pico_files])
             # Note: this will break if the data columns have different names (e.g. one is last 
             # and one is ave)
             # Convert the first column to datetime and rename it to 'Timestamp'
+            aux['pico'] = {}
             aux['pico']['timestamp'] = pd.to_datetime(
                 pico_data.iloc[:, 0], errors='coerce', unit='s').to_numpy()
             aux['pico']['pot'] = pico_data.iloc[:, 1].to_numpy()
@@ -122,7 +123,7 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
             elif ('V' in pico_data.columns[1]):
                 pass
             else:
-                raise ValueError("Cannot determine the unit of the potential data in pico CSV file. Expected 'mV' or 'V'.")
+                raise ValueError(f"Cannot determine the unit of the potential data in pico CSV file. Expected 'mV' or 'V'. Found '{pico_data.columns[1]}' instead.")
         else:
             aux['pico'] = None
     except Exception as e:
@@ -159,19 +160,23 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
     except Exception as e:
         raise RuntimeError('Error reading main controller csv file') from e
 
-    # Assert timestamps are equivalent and use single timestamp
+    # Compare lengths first, cut off the longest array until lengths match
     if aux['furnace']['cascade_celsius'] is not None and aux['furnace']['main_celsius'] is not None:
-        if not np.array_equal(aux['furnace']['cascade_timestamp'],
-        aux['furnace']['main_timestamp']):
-            aux['furnace']['cascade_celsius'] = np.interp(
-                aux['furnace']['main_timestamp'].astype(np.int64) // 10**9,
-                aux['furnace']['cascade_timestamp'].astype(np.int64) // 10**9,
-                aux['furnace']['cascade_celsius']
-            )
-            #raise ValueError(f"Cascade ({len(aux['furnace']['cascade_timestamp'])}) and Main ({len(aux['furnace']['main_timestamp'])}) timestamps do not match (folder: {auxiliary_path})")
-        aux['furnace']['timestamp'] = aux['furnace']['cascade_timestamp']
-        del aux['furnace']['cascade_timestamp']
-        del aux['furnace']['main_timestamp']
+        while len(aux['furnace']['cascade_timestamp']) != len(aux['furnace']['main_timestamp']):
+            if len(aux['furnace']['cascade_timestamp']) > len(aux['furnace']['main_timestamp']):
+                aux['furnace']['cascade_timestamp'] = aux['furnace']['cascade_timestamp'][:-1]
+                aux['furnace']['cascade_celsius']   = aux['furnace']['cascade_celsius'][:-1]
+            else:
+                aux['furnace']['main_timestamp'] = aux['furnace']['main_timestamp'][:-1]
+                aux['furnace']['main_celsius']   = aux['furnace']['main_celsius'][:-1]
+        # If timestamps differ when lengths are equal, discard furnace data
+        if not np.array_equal(aux['furnace']['cascade_timestamp'], aux['furnace']['main_timestamp']):
+            logger.warning("Furnace data was read, but failed parsing.")
+            aux['furnace'] = None
+        else:
+            aux['furnace']['timestamp'] = aux['furnace']['cascade_timestamp']
+            del aux['furnace']['cascade_timestamp']
+            del aux['furnace']['main_timestamp']
 
     return aux
 

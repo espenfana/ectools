@@ -351,7 +351,7 @@ class EcImporter:
         faux = {'pico': {}, 'furnace': {}}
 
         # Process Pico Data if Available
-        if 'pico' in aux:
+        if aux.get('pico'):
             pico_data = aux['pico']
             if 'timestamp' in pico_data and pico_data['timestamp'] is not None:
                 try:
