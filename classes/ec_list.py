@@ -102,13 +102,16 @@ class EcList(List[T], Generic[T]):
         except Exception as e:
             raise ValueError(f"Error applying area corrections: {str(e)}") from e
 
-    def filter(self, fids: list = None, sorting = None, **kwargs) -> 'EcList':
+    def filter(self, fids: list = None, sorting=None, between=False, **kwargs) -> 'EcList':
         """
-        Select files based on a list of file IDs (fids) OR matching any attribute key-value pair.
-        Files are selected if they match any of the file IDs or any of the key-value pairs.
+        Select files based on a list of file IDs (fids), a range if between_fids=True and fids has 2 items,
+        OR matching any attribute key-value pair. Files are selected if they match any of the file IDs or
+        any of the key-value pairs.
 
         Args:
             fids : A list of file IDs (fids).
+            sorting: An attribute name to sort by.
+            between_fids: Whether to select files in the inclusive range of two fids.
             kwargs: Key-value pairs to filter by file attributes.
 
         Returns:
@@ -116,15 +119,26 @@ class EcList(List[T], Generic[T]):
         """
         selected_idx = set()
 
-        # Handle file ID (fid) filtering using the 'fid' attribute of each file
-        if fids:
-            fids = [fid.lower().lstrip('0') for fid in fids]  # Normalize fids
-            for idx, file in enumerate(self):
-                file_fid = getattr(file, 'id', None)  # Handle missing 'fid' gracefully
-                if file_fid and file_fid in fids:
-                    selected_idx.add(idx)
+        # Check if between_fids=True but fids doesn't have length 2
+        if between and (not fids or len(fids) != 2):
+            raise ValueError("When between_fids=True, exactly two fids must be provided.")
 
-        # Handle attribute key-value pair filtering (match any key-value pair)
+        if fids:
+            normalized_fids = [fid.lower().lstrip('0') for fid in fids]
+            if between:
+                start, end = sorted([int(nf) for nf in normalized_fids])
+                for idx, file in enumerate(self):
+                    file_fid = getattr(file, 'id', None)
+                    if file_fid and file_fid.isdigit():
+                        numeric_id = int(file_fid)
+                        if start <= numeric_id <= end:
+                            selected_idx.add(idx)
+            else:
+                for idx, file in enumerate(self):
+                    file_fid = getattr(file, 'id', None)
+                    if file_fid and file_fid.lower().lstrip('0') in normalized_fids:
+                        selected_idx.add(idx)
+
         if kwargs:
             for idx, file in enumerate(self):
                 for key, value in kwargs.items():
@@ -132,16 +146,15 @@ class EcList(List[T], Generic[T]):
                     if isinstance(value, Iterable) and not isinstance(value, str):
                         if file_attr in value:
                             selected_idx.add(idx)
-                            break  # If one key-value pair matches, add file and break
+                            break
                     else:
                         if file_attr == value:
                             selected_idx.add(idx)
-                            break  # If one key-value pair matches, add file and break
+                            break
 
         if not selected_idx:
             raise ValueError(f"No files found matching the provided criteria: {kwargs or fids}")
 
-        # Create a new EcList instance with the selected files
         selected_files = sorted([self[i] for i in selected_idx],
                                 key=lambda f: f.fname,
                                 reverse=False)
@@ -183,9 +196,15 @@ class EcList(List[T], Generic[T]):
         # Return the first selected file
         return selected_files[0]
 
-    def plot(self, group = None, titles='fname', **kwargs):
+    def plot(self, group=None, merge=False, titles='fname', **kwargs):
         '''Plot data using matplotlib. Any kwargs are passed along to f.plot()'''
-        if group and getattr(self[0], group):
+        if merge:
+            _, ax = plt.subplots(1, 1, figsize=(8, 5), constrained_layout=True)
+            for f in self:
+                f.plot(ax=ax, **kwargs)
+                if titles:
+                    ax.set_title(getattr(f, titles,''))
+        elif group and getattr(self[0], group):
             unique_groups = {getattr(f, group) for f in self}
             for g in unique_groups:
                 fl_group = self.filter(**{group:g})

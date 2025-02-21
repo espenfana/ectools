@@ -169,7 +169,6 @@ class EcImporter:
                 # With the technique from the metadata, we can use the appropriate container object
                 container_class = self._get_class(technique)
                 container = container_class(fname, fpath, meta_list)
-
                 container.ocv_delay_time = ocv_delay_time
 # -- start of data block parsing
 
