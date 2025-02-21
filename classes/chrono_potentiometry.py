@@ -20,6 +20,7 @@ class ChronoPotentiometry(ElectroChemistry):
         super().__init__(*args, **kwargs)
         self.time_step = float()
         self.curr_step = float()
+        self.tag = 'CP'
 
     # Class methods
     def parse_meta_mpt(self):

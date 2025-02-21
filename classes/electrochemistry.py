@@ -39,6 +39,7 @@ class ElectroChemistry():
     # Initialize
     def __init__(self, fname, fpath, meta, **kwargs):
         ''' Create a generalized ElecroChemistry object'''
+        self.tag = None
         self.fname = fname # Filename
         self.fpath = fpath # Path to file
         self.meta = meta # Metadata block

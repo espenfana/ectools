@@ -18,6 +18,7 @@ class ChronoAmperometry(ElectroChemistry):
     def __init__(self, *args, **kwargs):
         '''Create a Chronoamperometry file container'''
         super().__init__(*args, **kwargs)
+        self.tag = 'CA'
 
     # Class methods
     def parse_meta_mpt(self):

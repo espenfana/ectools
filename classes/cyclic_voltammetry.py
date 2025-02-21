@@ -22,8 +22,8 @@ class CyclicVoltammetry(ElectroChemistry):
     # Initialize
     def __init__(self, *args, **kwargs):
         '''Create a Cyclic Voltammetry container'''
-        super().__init__(*args, **kwargs)
-        # Data columns
+        super().__init__(*args, **kwargs)        # Data columns
+        self.tag = 'CV'
         self.cycle = np.empty(0)
         self.data_columns.extend(['cycle', 'cycle_v2', 'cycle_init'])
         # Experiment parameters

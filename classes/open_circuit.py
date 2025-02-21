@@ -13,10 +13,11 @@ class OpenCircuit(ElectroChemistry):
     # which are used in a re.match.
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
 
-    # Initialize
-    #def __init__(self, *args, **kwargs):
-    #    '''Create a Open Circuit type file container'''
-    #    super().__init__(*args, **kwargs)
+    #Initialize
+    def __init__(self, *args, **kwargs):
+        '''Create a Open Circuit type file container'''
+        super().__init__(*args, **kwargs)
+        self.tag = 'OCP'
 
     # Class methods
     #def parse_meta_mpt(self):

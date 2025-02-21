@@ -21,10 +21,11 @@ class LinearSweepVoltammetry(ElectroChemistry):
 
     def __init__(self, *args, **kwargs):
         '''Create a Linear Sweep Voltammetry container'''
+        super().__init__(*args, **kwargs)
         self.scanrate = float()
         self.pot_init = float()
         self.pot_end = float()
-        super().__init__(*args, **kwargs)
+        self.tag = 'LSV'
 
     # Class methods
     def parse_meta_mpt(self):
