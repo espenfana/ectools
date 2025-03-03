@@ -24,6 +24,7 @@ class ChronoAmperometry(ElectroChemistry):
     def parse_meta_mpt(self):
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
+        
 
     def plot(self,
             ax=None,

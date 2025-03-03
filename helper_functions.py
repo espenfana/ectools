@@ -88,20 +88,24 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
                 aux.update(json_data)
     except Exception as e:
         raise RuntimeError('Error reading json file') from e
-    
+
     # Process 'oxide' samples if present in JSON data
     if 'oxide' in aux and 'salt_sampled' in aux:
         aux['oxide_measurements'] = aux['oxide']
-        oxide = []
+        oxide = {}
         salt_sampled = aux['salt_sampled']
-        
-        for measurements, timestamp in zip(aux['oxide'], salt_sampled):
+
+        for sample_id, measurements in aux['oxide'].items():
             try:
-                sample = OxideSample(measurements, timestamp)
-                oxide.append(sample)
+                sample = OxideSample(measurements, salt_sampled[sample_id])
+                oxide[sample_id] = sample
             except ValueError as e:
-                pass
-        
+                logger.warning("Error processing oxide sample %s: %s", sample_id, e)
+            except KeyError as e:
+                logger.warning(
+                    "Error processing oxide sample. Probable mismatched sample and timestamp %s: %s",
+                    sample_id, e
+                )
         aux['oxide'] = oxide
     else:
         aux['oxide_samples'] = []
@@ -256,9 +260,8 @@ def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True, heating_rate
         oxide_samples = fl.aux['oxide']
         if oxide_samples:
             text_out.append("Oxide samples:")
-            for i, sample in enumerate(oxide_samples):
-                letter = chr(65 + i)
-                text_out.append(f"{run_id}_{letter}: {sample.mean:.2f} ± {sample.stdev:.2f}, sampled {sample.timestamp}")
+            for suffix, sample in oxide_samples.items():
+                text_out.append(f"{run_id}_{suffix}: {sample.mean:.2f} ± {sample.stdev:.2f}, sampled {sample.timestamp}")
         else:
             text_out.append("No oxide samples recorded, or json file not properly formatted")
     for line in text_out:
