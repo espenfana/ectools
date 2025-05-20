@@ -18,6 +18,7 @@ class OpenCircuit(ElectroChemistry):
         '''Create a Open Circuit type file container'''
         super().__init__(*args, **kwargs)
         self.tag = 'OCP'
+        self.control = 'Open Circuit'
 
     # Class methods
     #def parse_meta_mpt(self):

@@ -2,7 +2,7 @@
 from .electrochemistry import ElectroChemistry
 # ChronoAmperometry Class
 class ChronoPotentiometry(ElectroChemistry):
-    '''Chronoamperometry file container'''
+    '''Chronopotentiometry file container'''
 
     # Class variables and constants
     identifiers = {'Chronopotentiometry', 'CP', 'CHRONOP'}
@@ -16,11 +16,12 @@ class ChronoPotentiometry(ElectroChemistry):
 
     # Initialize
     def __init__(self, *args, **kwargs):
-        '''Create a Chronoamperometry file container'''
+        '''Create a Chronopotentiometry file container'''
         super().__init__(*args, **kwargs)
         self.time_step = float()
         self.curr_step = float()
         self.tag = 'CP'
+        self.control = 'Amperostatic'
 
     # Class methods
     def parse_meta_mpt(self):

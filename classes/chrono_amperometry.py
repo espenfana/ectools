@@ -19,6 +19,7 @@ class ChronoAmperometry(ElectroChemistry):
         '''Create a Chronoamperometry file container'''
         super().__init__(*args, **kwargs)
         self.tag = 'CA'
+        self.control = 'Potentiostatic'
 
     # Class methods
     def parse_meta_mpt(self):

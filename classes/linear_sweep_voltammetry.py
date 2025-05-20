@@ -26,6 +26,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
         self.pot_init = float()
         self.pot_end = float()
         self.tag = 'LSV'
+        self.control = 'Potentiostatic'
 
     # Class methods
     def parse_meta_mpt(self):

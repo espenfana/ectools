@@ -40,6 +40,7 @@ class ElectroChemistry():
     def __init__(self, fname, fpath, meta, **kwargs):
         ''' Create a generalized ElecroChemistry object'''
         self.tag = None
+        self.control = None
         self.fname = fname # Filename
         self.fpath = fpath # Path to file
         self.meta = meta # Metadata block
@@ -236,7 +237,13 @@ class ElectroChemistry():
             sliced_instance.aux = {}
             for attr_name, attr_value in self.aux.items():
                 if attr_name == 'pico':
-                    sliced_instance.aux['pico'] = {key: value[mask] for key, value in attr_value.items()}
+                    # Handle pico data, checking if value shape matches mask
+                    sliced_instance.aux['pico'] = {}
+                    for key, value in attr_value.items():
+                        if isinstance(value, np.ndarray) and len(value) == len(mask):
+                            sliced_instance.aux['pico'][key] = value[mask]
+                        else:
+                            sliced_instance.aux['pico'][key] = value
                 elif attr_name == 'furnace': # Furnace data not interpolated to common time axis
                     sliced_instance.aux['furnace'] = {key: value for key, value in attr_value.items()}
                 else:
@@ -372,7 +379,7 @@ class ElectroChemistry():
             ax_left_kws = None, # arguments passed to ax.set()
             ax_right_kws = None, # arguments passed to ax.set()
             **kwargs):
-        ''' Possibly not implemented!
+        ''' Possibly not properly implemented!
         Plot data with two y-scales using matplotlib. 
             Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
         if not fig:
