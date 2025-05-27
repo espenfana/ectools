@@ -246,12 +246,11 @@ class EcList(List[T], Generic[T]):
             return self[self._fid_idx[fid]]
         raise ValueError(f"File ID '{fid}' not found in the list.")
     
-    def collate_data(self, indices, target_class_name=None, cyclic=False):
+    def collate_data(self, target_class_name=None, cyclic=False):
         """
-        Collate data from multiple electrochemistry files for conversion to derivative classes.
+        Collate data from files in the current EcList for conversion to derivative classes.
         
         Args:
-            indices: int or list of int - indices of files in EcList to collate
             target_class_name: str - name of target class (for reference/debugging)
             cyclic: bool - if True, files are treated as cyclic data and ordered by starttime,
                           with cycle numbers extracted from filenames
@@ -262,15 +261,11 @@ class EcList(List[T], Generic[T]):
                 - aux_dict: dict with merged auxiliary data  
                 - meta_dict: dict with metadata from each source file
         """
-        # Handle single file case
-        if isinstance(indices, int):
-            indices = [indices]
+        if not self:
+            raise ValueError("No files in EcList to collate")
             
-        if not indices:
-            raise ValueError("No indices provided")
-            
-        # Get the files to collate
-        files = [self[i] for i in indices]
+        # Get all files from the current EcList
+        files = list(self)
         
         # If cyclic, sort files by starttime to ensure proper chronological order
         if cyclic:
@@ -293,7 +288,8 @@ class EcList(List[T], Generic[T]):
         def extract_cycle_number(fname):
             """Extract cycle number from filename ending with _#n.DTA"""
             import re
-            match = re.search(r'_#?(\d+)\.DTA$', fname, re.IGNORECASE)
+            # More specific pattern: must have # before the number
+            match = re.search(r'_#(\d+)\.DTA$', fname, re.IGNORECASE)
             if match:
                 return int(match.group(1)) - 1  # Subtract 1 to start at 0
             return 0  # Default to 0 if no cycle number found
