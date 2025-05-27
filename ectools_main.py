@@ -88,9 +88,9 @@ class EcImporter:
                     eclist.append(f)
                 else:
                     ignored += 1
-            except Exception:  # pylint: disable=broad-except
-                #self.logger.error('Error processing file %s: %s', fname, error)
-                pass
+            except (FileNotFoundError, PermissionError, UnicodeDecodeError, RuntimeError) as e:
+                self.logger.warning('Error processing file %s: %s', fname, e)
+                ignored += 1
             finally:
                 print(f'\rProcessing {i} of {len(flist)}' + '.' * (i % 7 + 1), end='\r')
         print(f'\nProcessed {len(flist)} entries, parsed {len(eclist)}, ignored {ignored}')
@@ -105,8 +105,8 @@ class EcImporter:
                 try: # Attempt to associate auxiliary data with each file
                     for f in eclist:
                         f.aux = self._associate_auxiliary_data(eclist.aux, f)
-                except Exception:
-                    self.logger.exception('Error associating auxiliary data')
+                except (KeyError, ValueError, TypeError, AttributeError) as e:
+                    self.logger.exception('Error associating auxiliary data: %s', e)
         #self.logger.info('Processed %d files, parsed %d', len(flist), len(eclist))
         eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
         return eclist
@@ -378,8 +378,8 @@ class EcImporter:
                         self.logger.debug('Pico data associated with file %s', f.fname)
                         self.logger.debug('Column lengths: %d', len(interp_pot))
                 except (ValueError, KeyError, TypeError) as e:
-                        self.logger.error('Error processing pico data: %s', e)
-                        self.logger.debug('Exception details:', exc_info=True)
+                    self.logger.error('Error processing pico data: %s', e)
+                    self.logger.debug('Exception details:', exc_info=True)
             else:
                 self.logger.warning('Pico data is missing the "timestamp" key or it is None.')
         else:

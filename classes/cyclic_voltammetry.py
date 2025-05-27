@@ -1,14 +1,18 @@
 '''Cyclic Voltammetry class'''
 import re
+from typing import Optional, Union, Dict, List, Any, Tuple
 import numpy as np
+from numpy.typing import NDArray
+from matplotlib.axes import Axes
 
 from .electrochemistry import ElectroChemistry
+
 # CyclicVoltammetry Class
 class CyclicVoltammetry(ElectroChemistry):
     '''Cyclic voltammetry file container'''
 
     # Class variables and constants
-    identifiers = {'Cyclic Voltammetry', 'CV'} # Strings in the raw files which indicate the technique
+    identifiers = {'Cyclic Voltammetry', 'CV'}  # Strings in the raw files which indicate the technique
     column_patterns = {**ElectroChemistry.column_patterns,
         'oxred': (r'ox/red',),
         'cat': (r'cat', r'cathodic'),
@@ -18,28 +22,39 @@ class CyclicVoltammetry(ElectroChemistry):
     # naming scheme. The values should be list-like to support multiple different regex identifiers,
     # which are used in a re.match.    
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
-
+    
     # Initialize
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         '''Create a Cyclic Voltammetry container'''
-        super().__init__(*args, **kwargs)        # Data columns
-        self.tag = 'CV'
-        self.control = 'Potentiostatic'
-        self.cycle = np.empty(0)
-        self.data_columns.extend(['cycle', 'cycle_v2', 'cycle_init'])
-        # Experiment parameters
-        self.scanrate = float()
-        self.cycle = float()
-        self.pot_init = float()
-        self.pot_upper = float()
-        self.pot_lower = float()
-        self.pot_end = float()
-        self.ncycles = int()
+        super().__init__(*args, **kwargs)
+        
+        # Data columns - explicitly typed for better IDE support
+        self.cycle: NDArray[np.int32] = np.empty(0, dtype=np.int32)
+        self.cycle_v2: NDArray[np.int32] = np.empty(0, dtype=np.int32)
+        self.cycle_init: NDArray[np.int32] = np.empty(0, dtype=np.int32)
+        self.sweep_dir: NDArray[np.int8] = np.empty(0, dtype=np.int8)  # -1 or 1
+        self.oxred: NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        self.cat: NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        
+        # Container metadata
+        self.tag: str = 'CV'
+        self.control: str = 'Potentiostatic'
+        
+        # Experiment parameters - with proper default values
+        self.scanrate: float = 0.0  # V/s
+        self.pot_init: float = 0.0  # V
+        self.pot_upper: float = 0.0  # V
+        self.pot_lower: float = 0.0  # V
+        self.pot_end: float = 0.0  # V
+        self.ncycles: int = 0
+        
+        # Update data columns list
+        self.data_columns.extend(['cycle', 'cycle_v2', 'cycle_init', 'sweep_dir', 'oxred', 'cat'])
 
     # Class methods
-    def parse_meta_mpt(self):
+    def parse_meta_mpt(self) -> None:
         '''Parse the metadata blocks into attributes'''
-        super().parse_meta_mpt() # Preprocess the metadata block
+        super().parse_meta_mpt()  # Preprocess the metadata block
         self.scanrate = float(self._meta_dict['dE/dt'][0][0])
         self.units['scanrate'] = self._meta_dict['dE/dt unit'][0]
         self.pot_init = float(self._meta_dict['Ei'][0][0])
@@ -52,7 +67,7 @@ class CyclicVoltammetry(ElectroChemistry):
         self.units['pot_end'] = self._meta_dict['Ef'][1]
         self.ncycles = int(self._meta_dict['nc cycles'][0][0])
 
-    def parse_meta_gamry(self):
+    def parse_meta_gamry(self) -> None:
         '''Parse the metadata list into attributes'''
         super().parse_meta_gamry()
         # tabsep gamry metadata is in meta_dict
@@ -72,31 +87,35 @@ class CyclicVoltammetry(ElectroChemistry):
             self.pot_upper = tmp
 
     def plot(self,
-    ax=None,
-    x='pot',
-    y='curr',
-    hue=None,
-    mask=None,
-    ax_kws=None,
-    cycles=None,
-    **kwargs):
+             ax: Optional[Axes] = None,
+             x: str = 'pot',
+             y: str = 'curr',
+             hue: Optional[Union[str, bool]] = None,
+             mask: Optional[np.ndarray] = None,
+             add_aux_cell: bool = False,
+             add_aux_counter: bool = False,
+             ax_kws: Optional[Dict[str, Any]] = None,
+             cycles: Optional[Union[List[int], Tuple[int, int]]] = None,
+             **kwargs: Any) -> Axes:
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        if hue is True: #default hue
+        if hue is True:  # default hue
             hue = 'cycle'
         if cycles:
-            mask = np.where(np.logical_and(self['cycle']>=cycles[0],  self['cycle']<=cycles[1]))
+            mask = np.where(np.logical_and(self['cycle']>=cycles[0], self['cycle']<=cycles[1]))
         ax = super().plot(ax=ax,
                           x=x,
                           y=y,
                           mask=mask,
                           hue=hue,
+                          add_aux_cell=add_aux_cell,
+                          add_aux_counter=add_aux_counter,
                           ax_kws=ax_kws,
                           **kwargs)
         if hue:
             ax.legend(title=hue)
-        return ax
-
-    def filter_cycle(self, column: str, cycles: list | int | str) -> np.ndarray:
+        return ax    
+    
+    def filter_cycle(self, column: str, cycles: Union[List[int], int, str]) -> np.ndarray:
         """
         Filter a data column based on cycle conditions.
         Parameters:

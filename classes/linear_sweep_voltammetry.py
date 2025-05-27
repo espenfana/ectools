@@ -1,5 +1,8 @@
 '''Linear sweep voltammetry container class'''
 import re
+from typing import Optional, Dict, Any, Union
+from matplotlib.axes import Axes
+import numpy as np
 
 from .electrochemistry import ElectroChemistry
 
@@ -18,18 +21,17 @@ class LinearSweepVoltammetry(ElectroChemistry):
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
 
     # Initialize
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         '''Create a Linear Sweep Voltammetry container'''
         super().__init__(*args, **kwargs)
-        self.scanrate = float()
-        self.pot_init = float()
-        self.pot_end = float()
-        self.tag = 'LSV'
-        self.control = 'Potentiostatic'
+        self.scanrate: float = 0.0
+        self.pot_init: float = 0.0
+        self.pot_end: float = 0.0
+        self.tag: str = 'LSV'
+        self.control: str = 'Potentiostatic'
 
     # Class methods
-    def parse_meta_mpt(self):
+    def parse_meta_mpt(self) -> None:
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
         self.scanrate = float(self._meta_dict['dE/dt'][0][0])
@@ -39,7 +41,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
         self.pot_end = float(self._meta_dict['Ef'][0][0])
         self.units['pot_end'] = self._meta_dict['Ef'][1]
 
-    def parse_meta_gamry(self):
+    def parse_meta_gamry(self) -> None:
         '''Parse the metadata list into attributes'''
         super().parse_meta_gamry()
         # tabsep gamry metadata is in meta_dict
@@ -49,13 +51,15 @@ class LinearSweepVoltammetry(ElectroChemistry):
             self.units[key] = re.search(r'\((.*?)\)', self._meta_dict[label]['description']).group(1)
 
     def plot(self,
-            ax=None,
-            x='pot',
-            y='curr',
-            hue=None,
-            mask=None,
-            ax_kws=None,
-            **kwargs):
+            ax: Optional[Axes] = None,
+            x: str = 'pot',
+            y: str = 'curr',
+            hue: Optional[Union[str, bool]] = None,
+            mask: Optional[np.ndarray] = None,
+            add_aux_cell: bool = False,
+            add_aux_counter: bool = False,
+            ax_kws: Optional[Dict[str, Any]] = None,
+            **kwargs: Any) -> Axes:
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
         ax = super().plot(
             ax=ax,
@@ -63,6 +67,8 @@ class LinearSweepVoltammetry(ElectroChemistry):
             y=y,
             mask=mask,
             hue=hue,
+            add_aux_cell=add_aux_cell,
+            add_aux_counter=add_aux_counter,
             ax_kws=ax_kws,
             **kwargs)
         if hue:

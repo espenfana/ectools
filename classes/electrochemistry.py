@@ -2,12 +2,13 @@
 
 import re
 from datetime import datetime, timedelta
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional, Dict, List, Any
 import warnings
 
 import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 # Conditional import of Bokeh
 try:
@@ -34,46 +35,55 @@ class ElectroChemistry():
         'time': (r'time/(.?s)',r'^T$',), # Time column
         'pot': (r'<?Ewe>?/(.?V)', r'potential', r'^Vf$',), # Potential column
         'curr':(r'<?I>?/(.?A)', r'^Im$')} # Current column
-    # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
-
-    # Initialize
-    def __init__(self, fname, fpath, meta, **kwargs):
+    # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict    # Initialize
+    def __init__(self, fname: str, fpath: str, meta: List[str], **kwargs: Any):
         ''' Create a generalized ElecroChemistry object'''
-        self.tag = None
-        self.control = None
-        self.fname = fname # Filename
-        self.fpath = fpath # Path to file
-        self.meta = meta # Metadata block
+        # Container metadata
+        self.tag: Optional[str] = None
+        self.control: Optional[str] = None
+        self.fname: str = fname # Filename
+        self.fpath: str = fpath # Path to file
+        self.meta: List[str] = meta # Metadata block
+        
+        # Apply any additional keyword arguments
         for key, val in kwargs.items():
             setattr(self, key, val)
-        # Initialize data columns as empty arrays
-        self.time = np.empty(0)
-        self.curr = np.empty(0)
-        self.curr_dens = np.empty(0)
-        self.pot = np.empty(0)
-        self.timestamp = np.empty(0)
-        self.data_columns = ['time', 'curr', 'curr_dens', 'pot', 'timestamp']
-        self.units = {}
-        self._meta_dict = {}
-        # These should remain empty in this class
-        #self.cycle = np.empty(0)
-        #self.oxred = np.empty(0)
-        self.aux = {'pico': {}, 'furnace': {}} # Auxiliary data
-        self.area = float()
-        self.starttime = datetime
-        self.starttime_toffset = float() # Because pre_step starts at negative time
-        self.label = None # Used for automatic labeling of plots
-        self._potential_offset = 0.0  # Initialize potential offset to zero
-        self.we_number = None # Working electrode number
-
-    def __getitem__(self, key):
+            
+        # Initialize data columns as empty arrays with proper types
+        self.time: NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        self.curr: NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        self.curr_dens: NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        self.pot: NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        self.timestamp: NDArray[np.datetime64] = np.empty(0, dtype='datetime64[us]')
+        
+        # Data management
+        self.data_columns: List[str] = ['time', 'curr', 'curr_dens', 'pot', 'timestamp']
+        self.units: Dict[str, str] = {}
+        self._meta_dict: Dict[str, Any] = {}
+        
+        # Auxiliary data
+        self.aux: Dict[str, Dict[str, Any]] = {'pico': {}, 'furnace': {}} # Auxiliary data
+        
+        # Electrode properties
+        self.area: float = 0.0
+        self.we_number: Optional[int] = None # Working electrode number
+        self._potential_offset: float = 0.0  # Initialize potential offset to zero
+        
+        # Temporal information
+        self.starttime: Optional[datetime] = None
+        self.starttime_toffset: float = 0.0 # Because pre_step starts at negative time
+        
+        # Display properties
+        self.label: Optional[str] = None # Used for automatic labeling of plots    def __getitem__(self, key: str) -> Any:
         '''Makes object subscriptable like a dict'''
         return self.__getattribute__(key)
-    def __setitem__(self, key, value):
+        
+    def __setitem__(self, key: str, value: Any) -> None:
         '''Makes object attributes assignable like a dict'''
         self.__setattr__(key, value)
-    def __repr__(self):
-        return self.__class__.__name__ + 'object from file' + self.fname
+        
+    def __repr__(self) -> str:
+        return f'{self.__class__.__name__} object from file {self.fname}'
 
     # Data parsing methods
     # ------------------------
