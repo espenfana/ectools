@@ -14,8 +14,8 @@ T = TypeVar('T', bound=ElectroChemistry)
 
 class EcList(List[T], Generic[T]):
     '''List class for handling ElectroChemistry class objects'''
-    
-    def __init__(self, fpath: Optional[str] = None, **kwargs: Any) -> None:
+
+    def __init__(self, fpath: Optional[str] = None, **kwargs):
         self.fpath = fpath
         self.aux = {'pico': {}, 'furnace': {}}
         super().__init__()
@@ -100,9 +100,9 @@ class EcList(List[T], Generic[T]):
                     if f.we_number == electrode_number:
                         f.set_area(area)
         except Exception as e:
-            raise ValueError(f"Error applying area corrections: {str(e)}") from e    
-        
-    def filter(self, fids: Optional[List[str]] = None, sorting: Optional[str] = None, between: bool = False, **kwargs: Any) -> 'EcList':
+            raise ValueError(f"Error applying area corrections: {str(e)}") from e
+
+    def filter(self, fids: list = None, sorting=None, between=False, **kwargs) -> 'EcList':
         """
         Select files based on a list of file IDs (fids), a range if between_fids=True and fids has 2 items,
         OR matching any attribute key-value pair. Files are selected if they match any of the file IDs or
@@ -162,9 +162,9 @@ class EcList(List[T], Generic[T]):
         eclist_out.extend(selected_files)
         if sorting:
             eclist_out.sort(key=lambda f: getattr(f, sorting), reverse=False)
-        return eclist_out    
-    
-    def select(self, fid: Optional[str] = None, **kwargs: Any) -> T:
+        return eclist_out
+
+    def select(self, fid: str = None, **kwargs) -> T:
         """
         Select a single file based on a file ID (fid) OR matching all attribute key-value pair.
         Files are selected if they match the file ID or all of the key-value pairs.
@@ -187,14 +187,13 @@ class EcList(List[T], Generic[T]):
             for key, value in kwargs.items():
                 selected_files = selected_files.filter(**{key: value})
 
-        if len(selected_files) > 1:        
+        if len(selected_files) > 1:
             warnings.warn(
                 f"Multiple files found matching the provided criteria: {kwargs or fid}. "
                 "Returning the first match."
-            )
-        # Return the first selected file
+            )        # Return the first selected file
         return selected_files[0]
-
+        
     def plot(self, 
              group: Optional[str] = None, 
              merge: bool = False, 
@@ -226,7 +225,7 @@ class EcList(List[T], Generic[T]):
                 if titles:
                     ax.set_title(getattr(f, titles,''))
 
-    def _generate_fid_idx(self) -> None:
+    def _generate_fid_idx(self):
         """Generates a dictionary mapping normalized file ID to index."""
         for i, f in enumerate(self):
             id_number = getattr(f, 'id_number', None)
@@ -236,7 +235,7 @@ class EcList(List[T], Generic[T]):
                 key = self._normalize_fid(str(id_number) + id_letter)
                 self._fid_idx[key] = i
 
-    def _normalize_fid(self, fid: str) -> str:
+    def _normalize_fid(self, fid):
         """Normalize the file ID by removing leading zeroes and converting to lowercase."""
         return fid.lstrip('0').lower()
 
