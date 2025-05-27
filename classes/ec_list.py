@@ -245,3 +245,152 @@ class EcList(List[T], Generic[T]):
         if fid in self._fid_idx:
             return self[self._fid_idx[fid]]
         raise ValueError(f"File ID '{fid}' not found in the list.")
+    
+    def collate_data(self, indices, target_class_name=None, cyclic=False):
+        """
+        Collate data from multiple electrochemistry files for conversion to derivative classes.
+        
+        Args:
+            indices: int or list of int - indices of files in EcList to collate
+            target_class_name: str - name of target class (for reference/debugging)
+            cyclic: bool - if True, files are treated as cyclic data and ordered by starttime,
+                          with cycle numbers extracted from filenames
+            
+        Returns:
+            tuple: (data_dict, aux_dict, meta_dict)
+                - data_dict: dict with collated data columns
+                - aux_dict: dict with merged auxiliary data  
+                - meta_dict: dict with metadata from each source file
+        """
+        # Handle single file case
+        if isinstance(indices, int):
+            indices = [indices]
+            
+        if not indices:
+            raise ValueError("No indices provided")
+            
+        # Get the files to collate
+        files = [self[i] for i in indices]
+        
+        # If cyclic, sort files by starttime to ensure proper chronological order
+        if cyclic:
+            files.sort(key=lambda f: f.starttime if f.starttime else datetime.min)
+        
+        # Initialize output dictionaries
+        data_dict = {}
+        aux_dict = {'pico': {}, 'furnace': {}}
+        meta_dict = {}
+        
+        # Determine total length and collect timestamps for time calculation
+        total_length = sum(len(f.time) for f in files)
+        all_timestamps = []
+        all_time_rel = []
+        step_numbers = []
+        source_tags = []
+        cycle_numbers = []  # New for cyclic data
+        
+        # Helper function to extract cycle number from filename
+        def extract_cycle_number(fname):
+            """Extract cycle number from filename ending with _#n.DTA"""
+            import re
+            match = re.search(r'_#?(\d+)\.DTA$', fname, re.IGNORECASE)
+            if match:
+                return int(match.group(1)) - 1  # Subtract 1 to start at 0
+            return 0  # Default to 0 if no cycle number found
+        
+        # Collect all timestamps and relative times
+        for step_idx, f in enumerate(files):
+            all_timestamps.extend(f.timestamp)
+            all_time_rel.extend(f.time)
+            step_numbers.extend([step_idx] * len(f.time))
+            source_tags.extend([f.tag] * len(f.time))
+            
+            # Handle cycle numbers for cyclic data
+            if cyclic:
+                cycle_num = extract_cycle_number(f.fname)
+                cycle_numbers.extend([cycle_num] * len(f.time))
+            else:
+                cycle_numbers.extend([0] * len(f.time))  # Default to 0 for non-cyclic
+            
+            # Store metadata for each file
+            meta_dict[f.fname] = f.meta
+            
+        # Convert timestamps to relative time (first timestamp = 0)
+        if all_timestamps:
+            first_timestamp = all_timestamps[0]
+            time_column = np.array([(ts - first_timestamp).total_seconds() 
+                                  for ts in all_timestamps])
+        else:
+            time_column = np.array([])
+            
+        # Add the new/modified columns
+        data_dict['time'] = time_column
+        data_dict['time_rel'] = np.array(all_time_rel)
+        data_dict['step'] = np.array(step_numbers)
+        data_dict['source_tag'] = np.array(source_tags)
+        data_dict['cycle'] = np.array(cycle_numbers)  # Add cycle column
+        data_dict['timestamp'] = np.array(all_timestamps)
+        
+        # Get all possible data columns from all files
+        all_columns = set()
+        for f in files:
+            all_columns.update(f.data_columns)
+            
+        # Remove columns we've already handled
+        remaining_columns = all_columns - {'time', 'timestamp'}
+        
+        # Collate each data column
+        for col in remaining_columns:
+            collated_data = []
+            
+            for f in files:
+                if hasattr(f, col) and len(getattr(f, col)) > 0:
+                    collated_data.extend(getattr(f, col))
+                else:
+                    # Fill missing data based on column type
+                    if col in ['curr', 'curr_dens']:
+                        # Current is 0 for OCP files
+                        fill_value = 0.0
+                    else:
+                        # Other columns get NaN
+                        fill_value = np.nan
+                    
+                    collated_data.extend([fill_value] * len(f.time))
+                    
+            data_dict[col] = np.array(collated_data)
+            
+        # Merge auxiliary data
+        for f in files:
+            if hasattr(f, 'aux') and f.aux:
+                for aux_type, aux_data in f.aux.items():
+                    if aux_type not in aux_dict:
+                        aux_dict[aux_type] = {}
+                        
+                    if isinstance(aux_data, dict):
+                        for key, value in aux_data.items():
+                            if key in aux_dict[aux_type]:
+                                # If key exists, try to concatenate arrays
+                                if isinstance(value, np.ndarray) and isinstance(aux_dict[aux_type][key], np.ndarray):
+                                    aux_dict[aux_type][key] = np.concatenate([aux_dict[aux_type][key], value])
+                                # For non-arrays, keep the first occurrence
+                            else:
+                                aux_dict[aux_type][key] = value
+                    else:
+                        # Handle non-dict auxiliary data
+                        aux_dict[aux_type] = aux_data
+                        
+        return data_dict, aux_dict, meta_dict
+
+    def convert_file(self, index, target_class_name=None, cyclic=False):
+        """
+        Convenience method to convert a single file.
+        
+        Args:
+            index: int - index of file in EcList to convert
+            target_class_name: str - name of target class (for reference/debugging)
+            cyclic: bool - if True, file is treated as cyclic data
+            
+        Returns:
+            tuple: (data_dict, aux_dict, meta_dict) - same as collate_data
+        """
+        return self.collate_data([index], target_class_name, cyclic)
