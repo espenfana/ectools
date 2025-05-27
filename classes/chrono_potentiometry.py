@@ -1,4 +1,8 @@
 '''ChronoPotiometry class'''
+from typing import Optional, Dict, Any, Union
+from matplotlib.axes import Axes
+import numpy as np
+
 from .electrochemistry import ElectroChemistry
 # ChronoAmperometry Class
 class ChronoPotentiometry(ElectroChemistry):
@@ -15,35 +19,40 @@ class ChronoPotentiometry(ElectroChemistry):
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
 
     # Initialize
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         '''Create a Chronopotentiometry file container'''
         super().__init__(*args, **kwargs)
-        self.time_step = float()
-        self.curr_step = float()
-        self.tag = 'CP'
-        self.control = 'Amperostatic'
+        self.time_step: float = 0.0
+        self.curr_step: float = 0.0
+        self.tag: str = 'CP'
+        self.control: str = 'Amperostatic'
 
     # Class methods
-    def parse_meta_mpt(self):
+    def parse_meta_mpt(self) -> None:
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
         self.curr_step = 'NotImplemented'
 
-    def parse_meta_gamry(self):
+    def parse_meta_gamry(self) -> None:
         '''Parse the metadata list into attributes'''
         super().parse_meta_gamry()
-        self.time_step = float()
-        self.curr_step = float()
+        self.time_step = 0.0
+        self.curr_step = 0.0
 
     def plot(self,
-            ax=None,
-            x='time',
-            y='pot',
-            hue=None,
-            mask=None,
-            ax_kws = None,
-            **kwargs):
+            ax: Optional[Axes] = None,
+            x: str = 'time',
+            y: str = 'pot',
+            hue: Optional[Union[str, bool]] = None,
+            mask: Optional[np.ndarray] = None,
+            add_aux_cell: bool = False,
+            add_aux_counter: bool = False,
+            ax_kws: Optional[Dict[str, Any]] = None,
+            **kwargs: Any) -> Axes:
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws = ax_kws, **kwargs)
+        ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, 
+                          add_aux_cell=add_aux_cell, add_aux_counter=add_aux_counter, 
+                          ax_kws=ax_kws, **kwargs)
         if hue:
             ax.legend(title=hue)
+        return ax
