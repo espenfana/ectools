@@ -1,4 +1,5 @@
-'''ecList class'''
+"""ecList class"""
+import re
 import warnings
 from collections.abc import Iterable
 from typing import TypeVar, Generic, List, Dict, Optional, Any
@@ -13,7 +14,7 @@ from .electrochemistry import ElectroChemistry
 T = TypeVar('T', bound=ElectroChemistry)
 
 class EcList(List[T], Generic[T]):
-    '''List class for handling ElectroChemistry class objects'''
+    """List class for handling ElectroChemistry class objects"""
     
     def __init__(self, fpath: Optional[str] = None, **kwargs: Any) -> None:
         self.fpath = fpath
@@ -27,11 +28,11 @@ class EcList(List[T], Generic[T]):
         return f'ecList with {len(self)} items'
 
     def file_indices(self) -> Dict[int, str]:
-        '''Returns a dict with ecList contents'''
+        """Returns a dict with ecList contents"""
         return {i: item.fname for i, item in enumerate(self)}
 
     def file_class(self) -> Dict[int, str]:
-        '''Returns a dict with class names for ecList contents'''
+        """Returns a dict with class names for ecList contents"""
         return {i: item.__class__.__name__ for i, item in enumerate(self)}
 
     def describe(self) -> str:
@@ -200,7 +201,7 @@ class EcList(List[T], Generic[T]):
              merge: bool = False, 
              titles: Optional[str] = 'fname', 
              **kwargs: Any) -> None:
-        '''Plot data using matplotlib. Any kwargs are passed along to f.plot()'''
+        """Plot data using matplotlib. Any kwargs are passed along to f.plot()"""
         if merge:
             _, ax = plt.subplots(1, 1, figsize=(8, 5), constrained_layout=True)
             for f in self:
@@ -240,8 +241,8 @@ class EcList(List[T], Generic[T]):
         """Normalize the file ID by removing leading zeroes and converting to lowercase."""
         return fid.lstrip('0').lower()
 
-    def fid(self, fid:str) -> ElectroChemistry: # deprecated
-        '''Return file based on file id (number + letter) (must be parsed from e.g. filename)'''
+    def fid(self, fid: str) -> ElectroChemistry:  # deprecated
+        """Return file based on file id (number + letter) (must be parsed from e.g. filename)"""
         if fid in self._fid_idx:
             return self[self._fid_idx[fid]]
         raise ValueError(f"File ID '{fid}' not found in the list.")
@@ -284,8 +285,7 @@ class EcList(List[T], Generic[T]):
         aux_dict = {'pico': {}, 'furnace': {}}
         meta_dict = {}
         
-        # Determine total length and collect timestamps for time calculation
-        total_length = sum(len(f.time) for f in files)
+        # Initialize data collection lists
         all_timestamps = []
         all_time_rel = []
         step_numbers = []
@@ -293,7 +293,6 @@ class EcList(List[T], Generic[T]):
         cycle_numbers = []  # New for cyclic data
         
         # Collect all timestamps, relative times, and cycle information
-        import re
         file_cycle_numbers = []  # Track cycle numbers by file for validation
         
         for step_idx, f in enumerate(files):
@@ -322,17 +321,10 @@ class EcList(List[T], Generic[T]):
             
         # Validate cycle order for cyclic data
         if cyclic and len(set(file_cycle_numbers)) > 1:
-            sorted_cycles = sorted(file_cycle_numbers)
+            sorted_cycles = sorted(set(file_cycle_numbers))
             expected_cycles = list(range(min(file_cycle_numbers), max(file_cycle_numbers) + 1))
-            if file_cycle_numbers != sorted_cycles:
-                print(f"Warning: Files are not in cycle order. Found cycles: {file_cycle_numbers}, Expected order: {sorted_cycles}")
-            if sorted_cycles != expected_cycles:
-                missing_cycles = set(expected_cycles) - set(file_cycle_numbers)
-                if missing_cycles:
-                    print(f"Warning: Missing cycles detected: {missing_cycles}")
-                duplicate_cycles = [x for x in file_cycle_numbers if file_cycle_numbers.count(x) > 1]
-                if duplicate_cycles:
-                    print(f"Warning: Duplicate cycles detected: {set(duplicate_cycles)}")
+            if file_cycle_numbers != sorted(file_cycle_numbers) or sorted_cycles != expected_cycles:
+                raise ValueError(f"Cycle order issue detected. Found cycles in order: {file_cycle_numbers}")
         
         # Create substep column (relative step number within each cycle)
         substep_numbers = []
