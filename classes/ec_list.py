@@ -253,11 +253,19 @@ class EcList(List[T], Generic[T]):
         Args:
             target_class_name: str - name of target class (for reference/debugging)
             cyclic: bool - if True, files are treated as cyclic data and ordered by starttime,
-                          with cycle numbers extracted from filenames
+                          with cycle numbers extracted from filenames and cycle order validated
             
         Returns:
             tuple: (data_dict, aux_dict, meta_dict)
-                - data_dict: dict with collated data columns
+                - data_dict: dict with collated data columns including:
+                  * time: unified timeline from timestamps (first timestamp = 0)
+                  * time_rel: original relative time from each file
+                  * step: file number in the sequence (0-based)
+                  * substep: relative step number within each cycle (0-based)
+                  * cycle: cycle number (extracted from filename for cyclic data)
+                  * source_tag: technique tag from source file
+                  * timestamp: original timestamp data
+                  * [original data columns]: curr, pot, etc. with missing values filled
                 - aux_dict: dict with merged auxiliary data  
                 - meta_dict: dict with metadata from each source file
         """
@@ -284,17 +292,10 @@ class EcList(List[T], Generic[T]):
         source_tags = []
         cycle_numbers = []  # New for cyclic data
         
-        # Helper function to extract cycle number from filename
-        def extract_cycle_number(fname):
-            """Extract cycle number from filename ending with _#n.DTA"""
-            import re
-            # More specific pattern: must have # before the number
-            match = re.search(r'_#(\d+)\.DTA$', fname, re.IGNORECASE)
-            if match:
-                return int(match.group(1)) - 1  # Subtract 1 to start at 0
-            return 0  # Default to 0 if no cycle number found
+        # Collect all timestamps, relative times, and cycle information
+        import re
+        file_cycle_numbers = []  # Track cycle numbers by file for validation
         
-        # Collect all timestamps and relative times
         for step_idx, f in enumerate(files):
             all_timestamps.extend(f.timestamp)
             all_time_rel.extend(f.time)
@@ -303,13 +304,50 @@ class EcList(List[T], Generic[T]):
             
             # Handle cycle numbers for cyclic data
             if cyclic:
-                cycle_num = extract_cycle_number(f.fname)
+                # Inline cycle extraction: pattern must have # before the number
+                match = re.search(r'_#(\d+)\.DTA$', f.fname, re.IGNORECASE)
+                if match:
+                    cycle_num = int(match.group(1)) - 1  # Subtract 1 to start at 0
+                else:
+                    cycle_num = 0  # Default to 0 if no cycle number found
+                    print(f"Warning: No cycle number found in filename {f.fname}, defaulting to cycle 0")
+                
+                file_cycle_numbers.append(cycle_num)
                 cycle_numbers.extend([cycle_num] * len(f.time))
             else:
                 cycle_numbers.extend([0] * len(f.time))  # Default to 0 for non-cyclic
             
             # Store metadata for each file
             meta_dict[f.fname] = f.meta
+            
+        # Validate cycle order for cyclic data
+        if cyclic and len(set(file_cycle_numbers)) > 1:
+            sorted_cycles = sorted(file_cycle_numbers)
+            expected_cycles = list(range(min(file_cycle_numbers), max(file_cycle_numbers) + 1))
+            if file_cycle_numbers != sorted_cycles:
+                print(f"Warning: Files are not in cycle order. Found cycles: {file_cycle_numbers}, Expected order: {sorted_cycles}")
+            if sorted_cycles != expected_cycles:
+                missing_cycles = set(expected_cycles) - set(file_cycle_numbers)
+                if missing_cycles:
+                    print(f"Warning: Missing cycles detected: {missing_cycles}")
+                duplicate_cycles = [x for x in file_cycle_numbers if file_cycle_numbers.count(x) > 1]
+                if duplicate_cycles:
+                    print(f"Warning: Duplicate cycles detected: {set(duplicate_cycles)}")
+        
+        # Create substep column (relative step number within each cycle)
+        substep_numbers = []
+        if cyclic:
+            # Group steps by cycle and assign substep numbers starting from 0
+            cycle_step_counts = {}
+            for step_idx, cycle_num in zip(step_numbers, cycle_numbers):
+                if cycle_num not in cycle_step_counts:
+                    cycle_step_counts[cycle_num] = {}
+                if step_idx not in cycle_step_counts[cycle_num]:
+                    cycle_step_counts[cycle_num][step_idx] = len(cycle_step_counts[cycle_num])
+                substep_numbers.append(cycle_step_counts[cycle_num][step_idx])
+        else:
+            # For non-cyclic data, substep is the same as step
+            substep_numbers = step_numbers.copy()
             
         # Convert timestamps to relative time (first timestamp = 0)
         if all_timestamps:
@@ -323,6 +361,7 @@ class EcList(List[T], Generic[T]):
         data_dict['time'] = time_column
         data_dict['time_rel'] = np.array(all_time_rel)
         data_dict['step'] = np.array(step_numbers)
+        data_dict['substep'] = np.array(substep_numbers)  # Add substep column
         data_dict['source_tag'] = np.array(source_tags)
         data_dict['cycle'] = np.array(cycle_numbers)  # Add cycle column
         data_dict['timestamp'] = np.array(all_timestamps)
