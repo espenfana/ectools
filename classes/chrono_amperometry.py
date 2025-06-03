@@ -4,7 +4,7 @@ from matplotlib.axes import Axes
 import numpy as np
 
 from .electrochemistry import ElectroChemistry
-# ChronoAmperometry Class
+
 class ChronoAmperometry(ElectroChemistry):
     '''Chronoamperometry file container'''
 
@@ -21,6 +21,7 @@ class ChronoAmperometry(ElectroChemistry):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         '''Create a Chronoamperometry file container'''
         super().__init__(*args, **kwargs)
+        # Set technique-specific metadata
         self.tag: str = 'CA'
         self.control: str = 'Potentiostatic'
 

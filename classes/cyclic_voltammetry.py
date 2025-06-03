@@ -23,33 +23,43 @@ class CyclicVoltammetry(ElectroChemistry):
     # which are used in a re.match.    
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
     
+    # Type hints for data columns (in addition to parent class)
+    cycle: NDArray[np.int32]
+    cycle_v2: NDArray[np.int32] 
+    cycle_init: NDArray[np.int32]
+    sweep_dir: NDArray[np.int8]
+    oxred: NDArray[np.float64]
+    cat: NDArray[np.float64]
+    
+    # Type hints for technique-specific metadata
+    scanrate: float
+    pot_init: float
+    pot_upper: float
+    pot_lower: float
+    pot_end: float
+    ncycles: int
+    
     # Initialize
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         '''Create a Cyclic Voltammetry container'''
         super().__init__(*args, **kwargs)
         
-        # Data columns - explicitly typed for better IDE support
-        self.cycle: NDArray[np.int32] = np.empty(0, dtype=np.int32)
-        self.cycle_v2: NDArray[np.int32] = np.empty(0, dtype=np.int32)
-        self.cycle_init: NDArray[np.int32] = np.empty(0, dtype=np.int32)
-        self.sweep_dir: NDArray[np.int8] = np.empty(0, dtype=np.int8)  # -1 or 1
-        self.oxred: NDArray[np.float64] = np.empty(0, dtype=np.float64)
-        self.cat: NDArray[np.float64] = np.empty(0, dtype=np.float64)
+        # Initialize data columns as empty arrays
+        self.cycle = np.empty(0, dtype=np.int32)
+        self.cycle_v2 = np.empty(0, dtype=np.int32)
+        self.cycle_init = np.empty(0, dtype=np.int32)
+        self.sweep_dir = np.empty(0, dtype=np.int8)  # -1 or 1
+        self.oxred = np.empty(0, dtype=np.float64)
+        self.cat = np.empty(0, dtype=np.float64)
         
-        # Container metadata
+        # Set technique-specific metadata
         self.tag: str = 'CV'
         self.control: str = 'Potentiostatic'
         
-        # Experiment parameters - with proper default values
-        self.scanrate: float = 0.0  # V/s
-        self.pot_init: float = 0.0  # V
-        self.pot_upper: float = 0.0  # V
-        self.pot_lower: float = 0.0  # V
-        self.pot_end: float = 0.0  # V
-        self.ncycles: int = 0
-        
         # Update data columns list
         self.data_columns.extend(['cycle', 'cycle_v2', 'cycle_init', 'sweep_dir', 'oxred', 'cat'])
+        
+        # Note: scanrate, pot_init, pot_upper, pot_lower, pot_end, ncycles are set during metadata parsing
 
     # Class methods
     def parse_meta_mpt(self) -> None:
