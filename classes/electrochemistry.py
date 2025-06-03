@@ -35,7 +35,29 @@ class ElectroChemistry():
         'time': (r'time/(.?s)',r'^T$',), # Time column
         'pot': (r'<?Ewe>?/(.?V)', r'potential', r'^Vf$',), # Potential column
         'curr':(r'<?I>?/(.?A)', r'^Im$')} # Current column
-    # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict    # Initialize
+    # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
+    
+    # Type hints for data columns
+    time: np.ndarray
+    curr: np.ndarray
+    curr_dens: np.ndarray
+    pot: np.ndarray
+    timestamp: np.ndarray
+    
+    # Type hints for metadata and other attributes
+    fname: str
+    fpath: str
+    meta: List[str]
+    tag: Optional[str]
+    control: Optional[str]
+    data_columns: List[str]
+    units: Dict[str, str]
+    aux: Dict[str, Dict[str, Any]]
+    area: float
+    starttime: datetime
+    starttime_toffset: float
+    label: Optional[str]
+    we_number: Optional[int]
     def __init__(self, fname: str, fpath: str, meta: List[str], **kwargs: Any):
         ''' Create a generalized ElecroChemistry object'''
         # Container metadata
@@ -61,9 +83,8 @@ class ElectroChemistry():
         #self.cycle = np.empty(0)
         #self.oxred = np.empty(0)
         self.aux = {'pico': {}, 'furnace': {}} # Auxiliary data
-        self.area = float()
-        self.starttime = datetime
-        self.starttime_toffset = float() # Because pre_step starts at negative time
+        # Note: area, starttime, starttime_toffset are set during file parsing
+        # No need to initialize them here since they're assigned complete values
         self.label = None # Used for automatic labeling of plots
         self._potential_offset = 0.0  # Initialize potential offset to zero
         self.we_number = None # Working electrode number
