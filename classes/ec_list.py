@@ -257,7 +257,8 @@ class EcList(List[T], Generic[T]):
                           with cycle numbers extracted from filenames and cycle order validated
             
         Returns:
-            tuple: (data_dict, aux_dict, meta_dict)
+            tuple: (filename, data_dict, aux_dict, meta_dict)
+                - filename: str or None - shared filename prefix from delimited parts (≥5 chars) or None if too short
                 - data_dict: dict with collated data columns including:
                   * time: unified timeline from timestamps (first timestamp = 0)
                   * time_rel: original relative time from each file
@@ -290,7 +291,7 @@ class EcList(List[T], Generic[T]):
         all_time_rel = []
         step_numbers = []
         source_tags = []
-        cycle_numbers = []  # New for cyclic data
+        cycle_numbers = []
         
         # Collect all timestamps, relative times, and cycle information
         file_cycle_numbers = []  # Track cycle numbers by file for validation
@@ -405,8 +406,43 @@ class EcList(List[T], Generic[T]):
                     else:
                         # Handle non-dict auxiliary data
                         aux_dict[aux_type] = aux_data
+        
+        # Detect shared filename prefix
+        if len(files) > 1:
+            delimiters = ['_', '-', ' ', '.']
+            
+            def split_with_delimiters(text, delimiters):
+                """Split text but keep delimiters with their preceding parts"""
+                pattern = '([' + ''.join(re.escape(d) for d in delimiters) + '])'
+                parts = re.split(pattern, text)
+                result = []
+                for i in range(0, len(parts), 2):
+                    part = parts[i]
+                    if i + 1 < len(parts):  # Has a delimiter after it
+                        delimiter = parts[i + 1]
+                        result.append(part + delimiter)
+                    else:  # Last part with no delimiter
+                        if part:  # Don't add empty parts
+                            result.append(part)
+                return result
+            
+            filenames = [split_with_delimiters(f.fname, delimiters) for f in files]
+            # Find common prefix among all filenames
+            filename = ""
+            for i in range(len(filenames[0])):
+                parts = [fname[i] for fname in filenames if i < len(fname)]
+                if all(p == parts[0] for p in parts):
+                    filename += parts[0]
+                else:
+                    break
+
+            # Only use if prefix is 5 characters or longer
+            filename = filename[:-1] if len(filename) >= 5 else None
+        else:
+            # Single file case
+            filename = files[0].fname if files else None
                         
-        return data_dict, aux_dict, meta_dict
+        return filename, data_dict, aux_dict, meta_dict
 
     def convert_file(self, index, target_class_name=None, cyclic=False):
         """
