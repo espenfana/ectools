@@ -19,7 +19,9 @@ class Plotter(Enum):
 
 _config = {
     'plotter': Plotter.MATPLOTLIB,  # default
-    'cycle_convension': 'v2' # "v2" (2nd vertex) or "init"  (initial value)
+    'cycle_convension': 'v2', # "v2" (2nd vertex) or "init"  (initial value)
+    'data_folder_identifier': 'data',  # Identifier for data folder
+    'auxiliary_folder_identifier': 'auxiliary',  # Identifier for auxiliary folder
 }
 
 def set_config(key, value):

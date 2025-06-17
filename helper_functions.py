@@ -62,30 +62,53 @@ def mc_filename_parser(_, fname: str) -> dict:
 
     return out
 
-def mc_auxiliary_importer(fpath: str) -> Dict:
+def mc_auxiliary_importer(fpath: str, aux_folder_id: str = None) -> Dict:
     """
     Load auxiliary data from JSON, furnace and pico files located in the specified file path.
     Parameters:
-        fpath (str): The base file path where the 'auxiliary' directory is located.
+        fpath (str): The base file path where the auxiliary directory is located.
+        aux_folder_id (str): Identifier for auxiliary folder (default: 'auxiliary')
     Returns:
         Dict: A dictionary containing the combined data from JSON and CSV files.
     Raises:
-        AssertionError: If the 'auxiliary' path does not exist.
+        AssertionError: If no auxiliary path with the identifier is found.
         RuntimeError: If there is an error reading the cascade or main controller CSV files.
     """
-
-    auxiliary_path = os.path.join(fpath, 'auxiliary')
-
-    assert os.path.exists(auxiliary_path), f"Path {auxiliary_path} does not exist."
+    from .config import get_config
+    
+    # Use provided identifier or get from config, fallback to 'auxiliary'
+    folder_id = aux_folder_id or get_config('auxiliary_folder_identifier') or 'auxiliary'
+    
+    # Find all folders containing the identifier (partial match, case-insensitive)
+    matching_folders = []
+    try:
+        for item in os.listdir(fpath):
+            item_path = os.path.join(fpath, item)
+            if os.path.isdir(item_path) and folder_id.lower() in item.lower():
+                matching_folders.append((item, item_path))
+    except (OSError, PermissionError):
+        pass
+    
+    # Fallback to exact 'auxiliary' folder if no partial matches found
+    if not matching_folders:
+        auxiliary_path = os.path.join(fpath, 'auxiliary')
+        if os.path.exists(auxiliary_path):
+            matching_folders = [('auxiliary', auxiliary_path)]
+        else:
+            assert False, f"No auxiliary folders found matching '{folder_id}' or exact 'auxiliary' folder"
+    
+    logger.debug('Found %d auxiliary folders: %s', len(matching_folders), [folder[0] for folder in matching_folders])
     aux = {}
 
-    # Read auxiliary json files
+    # Read auxiliary json files from all matching folders
     try:
-        json_files = glob.glob(os.path.join(auxiliary_path, '**', '*.json'), recursive=True)
-        for file in json_files:
-            with open(file, 'r', encoding='utf-8') as file:
-                json_data = json.load(file)
-                aux.update(json_data)
+        for folder_name, folder_path in matching_folders:
+            json_files = glob.glob(os.path.join(folder_path, '**', '*.json'), recursive=True)
+            for file in json_files:
+                with open(file, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                    aux.update(json_data)
+                    logger.debug('Loaded JSON from: %s', file)
     except Exception as e:
         raise RuntimeError('Error reading json file') from e
 
@@ -110,9 +133,12 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
     else:
         aux['oxide_samples'] = []
     
-    # Read pico file(s)
+    # Read pico file(s) from all matching folders
     try:
-        pico_files = glob.glob(os.path.join(auxiliary_path, '**', '*pico*.csv'), recursive=True)
+        pico_files = []
+        for folder_name, folder_path in matching_folders:
+            pico_files.extend(glob.glob(os.path.join(folder_path, '**', '*pico*.csv'), recursive=True))
+        
         if pico_files:
             pico_data = pd.concat([pd.read_csv(file, header=0) for file in pico_files])
             # Note: this will break if the data columns have different names (e.g. one is last 
@@ -133,36 +159,56 @@ def mc_auxiliary_importer(fpath: str) -> Dict:
     except Exception as e:
         raise RuntimeError('Error reading pico csv file') from e
 
-    # Read cascade controller csv file
+    # Read cascade controller csv files from all matching folders
     aux['furnace'] = {}
+    cascade_data_list = []
     try:
-        cascade_path = os.path.join(auxiliary_path, 'CascadeController')
-        if os.path.exists(cascade_path):
-            csv_file = [file for file in os.listdir(cascade_path) if file.endswith('.csv')][0]
-            cascade_data = pd.read_csv(os.path.join(cascade_path, csv_file), header=1)
-            aux['furnace']['cascade_timestamp'] = pd.to_datetime(
-                cascade_data['Date'] + ' ' + cascade_data['Time'], errors='coerce').to_numpy()
-            aux['furnace']['cascade_celsius'] = cascade_data['Cascade_Controller_PV'].to_numpy()
-            aux['furnace']['cascade_setpoint'] = cascade_data['Cascade_Controller_Working_SP'].to_numpy()
+        for folder_name, folder_path in matching_folders:
+            cascade_path = os.path.join(folder_path, 'CascadeController')
+            if os.path.exists(cascade_path):
+                csv_files = [file for file in os.listdir(cascade_path) if file.endswith('.csv')]
+                for csv_file in csv_files:
+                    cascade_data = pd.read_csv(os.path.join(cascade_path, csv_file), header=1)
+                    cascade_data['timestamp'] = pd.to_datetime(
+                        cascade_data['Date'] + ' ' + cascade_data['Time'], errors='coerce')
+                    cascade_data_list.append(cascade_data)
+                    logger.debug('Loaded cascade data from: %s', os.path.join(cascade_path, csv_file))
+        
+        if cascade_data_list:
+            # Combine all cascade data and sort by timestamp
+            combined_cascade = pd.concat(cascade_data_list, ignore_index=True).sort_values('timestamp')
+            aux['furnace']['cascade_timestamp'] = combined_cascade['timestamp'].to_numpy()
+            aux['furnace']['cascade_celsius'] = combined_cascade['Cascade_Controller_PV'].to_numpy()
+            aux['furnace']['cascade_setpoint'] = combined_cascade['Cascade_Controller_Working_SP'].to_numpy()
         else:
             aux['furnace']['cascade_celsius'] = None
     except Exception as e:
-        raise RuntimeError(f'Error reading cascade controller csv file from {cascade_path}') from e
+        raise RuntimeError(f'Error reading cascade controller csv files') from e
     
-    # Read main controller csv file
+    # Read main controller csv files from all matching folders
+    main_data_list = []
     try:
-        main_path = os.path.join(auxiliary_path, 'MainController')
-        if os.path.exists(main_path):
-            csv_file = [file for file in os.listdir(main_path) if file.endswith('.csv')][0]
-            main_data = pd.read_csv(os.path.join(main_path, csv_file), header=1)
-            aux['furnace']['main_timestamp'] = pd.to_datetime(
-                main_data['Date'] + ' ' + main_data['Time'], errors='coerce').to_numpy()
-            aux['furnace']['main_celsius'] = main_data['Main_Controller_PV'].to_numpy()
-            aux['furnace']['main_setpoint'] = main_data['Main_Controller_Working_SP'].to_numpy()
+        for folder_name, folder_path in matching_folders:
+            main_path = os.path.join(folder_path, 'MainController')
+            if os.path.exists(main_path):
+                csv_files = [file for file in os.listdir(main_path) if file.endswith('.csv')]
+                for csv_file in csv_files:
+                    main_data = pd.read_csv(os.path.join(main_path, csv_file), header=1)
+                    main_data['timestamp'] = pd.to_datetime(
+                        main_data['Date'] + ' ' + main_data['Time'], errors='coerce')
+                    main_data_list.append(main_data)
+                    logger.debug('Loaded main data from: %s', os.path.join(main_path, csv_file))
+        
+        if main_data_list:
+            # Combine all main data and sort by timestamp
+            combined_main = pd.concat(main_data_list, ignore_index=True).sort_values('timestamp')
+            aux['furnace']['main_timestamp'] = combined_main['timestamp'].to_numpy()
+            aux['furnace']['main_celsius'] = combined_main['Main_Controller_PV'].to_numpy()
+            aux['furnace']['main_setpoint'] = combined_main['Main_Controller_Working_SP'].to_numpy()
         else:
             aux['furnace']['main_celsius'] = None
     except Exception as e:
-        raise RuntimeError('Error reading main controller csv file') from e
+        raise RuntimeError('Error reading main controller csv files') from e
 
     # Compare lengths first, cut off the longest array until lengths match
     if aux['furnace']['cascade_celsius'] is not None and aux['furnace']['main_celsius'] is not None:
@@ -273,21 +319,7 @@ def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True, heating_rate
     # Separate Furnace Plot with Dual y-Axes (Temperature and Heating Rate)
     if furnace and fl.aux.get('furnace') is not None:
         furnace_data = fl.aux['furnace'].copy()
-        source_furnace = ColumnDataSource(data=furnace_data)
-        p_furnace = figure(title="Furnace Data",
-                           x_axis_label='Time',
-                           x_axis_type='datetime',
-                           width=800,
-                           height=400)
-        # Plot temperature data on left y-axis with pairwise distinct colours:
-        # Thermocouple (cascade_celsius) and its heating rate
-        p_furnace.line(x='timestamp', y='cascade_celsius', source=source_furnace,
-                       legend_label='Thermocouple', line_width=2, color="blue", name='furnace_line')
-        # Plot main temperature if available with a distinct colour
-        if (isinstance(furnace_data, dict) and 'main_celsius' in furnace_data):
-            p_furnace.line(x='timestamp', y='main_celsius', source=source_furnace,
-                           legend_label='Heating Element', line_width=2, color='orange', name='main_line')
-
+        
         # Compute heating rate for cascade temperature
         ts = np.array(furnace_data['timestamp'])
         cascade = np.array(furnace_data['cascade_celsius'])
@@ -304,59 +336,69 @@ def display_auxiliary_data(fl, oxide=True, furnace=True, pico=True, heating_rate
             heating_rate_main = np.concatenate(([np.nan], dT_main / dt))
             furnace_data["heating_rate_main"] = heating_rate_main
 
-        # Update the data source with heating rate data
-        source_furnace.data = furnace_data
+        # Create data source with all data for comprehensive tooltips
+        temp_data = {
+            'timestamp': furnace_data['timestamp'],
+            'cascade_celsius': furnace_data['cascade_celsius'],
+            'heating_rate': furnace_data['heating_rate']
+        }
+        if "main_celsius" in furnace_data:
+            temp_data['main_celsius'] = furnace_data['main_celsius']
+            temp_data['heating_rate_main'] = furnace_data['heating_rate_main']
 
-        # Add extra y-axis for heating rate with limits
+        source_temp = ColumnDataSource(data=temp_data)
+
+        p_furnace = figure(title="Furnace Data",
+                           x_axis_label='Time',
+                           x_axis_type='datetime',
+                           width=800,
+                           height=400)
+        
+        # Plot temperature data on left y-axis
+        temp_lines = []
+        temp_lines.append(p_furnace.line(x='timestamp', y='cascade_celsius', source=source_temp,
+                                        legend_label='Thermocouple', line_width=2, color="blue"))
+        
+        if "main_celsius" in furnace_data:
+            temp_lines.append(p_furnace.line(x='timestamp', y='main_celsius', source=source_temp,
+                                            legend_label='Heating Element', line_width=2, color='orange'))
+
+        # Add extra y-axis for heating rate
         p_furnace.extra_y_ranges = {"heating_rate": Range1d(start=-20, end=40)}
         p_furnace.add_layout(LinearAxis(y_range_name="heating_rate", axis_label="Heating Rate (°C/min)"), 'right')
         p_furnace.y_range = Range1d(start=-400, end=800)
-        # Plot heating rate data on the right y-axis using distinct colours.
-        p_furnace.line(x='timestamp', y='heating_rate', source=source_furnace,
-                       legend_label="Heating Rate (Cascade)", line_width=2, color="green",
-                       y_range_name="heating_rate", name="rate_line")
+        
+        # Plot heating rate data on right y-axis using same source
+        p_furnace.line(x='timestamp', y='heating_rate', source=source_temp,
+                      legend_label="Heating Rate (Cascade)", line_width=2, color="green",
+                      y_range_name="heating_rate")
+        
         if "main_celsius" in furnace_data:
-            p_furnace.line(x='timestamp', y='heating_rate_main', source=source_furnace,
-                           legend_label="Heating Rate (Main)", line_width=2, color="red",
-                           y_range_name="heating_rate", name="main_rate_line")
+            p_furnace.line(x='timestamp', y='heating_rate_main', source=source_temp,
+                          legend_label="Heating Rate (Main)", line_width=2, color="red",
+                          y_range_name="heating_rate")
 
-        # Add hover tools for temperature and heating rate lines
-        hover_furnace = HoverTool(renderers=[p_furnace.select_one({'name': 'furnace_line'})],
-                                  tooltips=[
-                                      ("Time", "@timestamp{%F %T}"),
-                                      ("Cascade (°C)", "@cascade_celsius")
-                                  ],
-                                  formatters={'@timestamp': 'datetime'},
-                                  mode='vline')
-        p_furnace.add_tools(hover_furnace)
-
-        hover_rate = HoverTool(renderers=[p_furnace.select_one({"name": "rate_line"})],
-                               tooltips=[
-                                   ("Time", "@timestamp{%F %T}"),
-                                   ("Heating Rate (Cascade °C/min)", "@heating_rate{0.000}")
-                               ],
-                               formatters={"@timestamp": "datetime"},
-                               mode="vline")
-        p_furnace.add_tools(hover_rate)
-
+        # Create comprehensive tooltips with all data
+        temp_tooltips = [
+            ("Time", "@timestamp{%F %T}"),
+            ("Cascade (°C)", "@cascade_celsius{0.0}"),
+            ("Heating Rate Cascade (°C/min)", "@heating_rate{0.00}")
+        ]
         if "main_celsius" in furnace_data:
-            hover_main = HoverTool(renderers=[p_furnace.select_one({'name': 'main_line'})],
-                                   tooltips=[
-                                       ("Time", "@timestamp{%F %T}"),
-                                       ("Main (°C)", "@main_celsius")
-                                   ],
-                                   formatters={'@timestamp': 'datetime'},
-                                   mode='vline')
-            p_furnace.add_tools(hover_main)
+            temp_tooltips.extend([
+                ("Main (°C)", "@main_celsius{0.0}"),
+                ("Heating Rate Main (°C/min)", "@heating_rate_main{0.00}")
+            ])
 
-            hover_main_rate = HoverTool(renderers=[p_furnace.select_one({"name": "main_rate_line"})],
-                                        tooltips=[
-                                            ("Time", "@timestamp{%F %T}"),
-                                            ("Heating Rate (Main °C/min)", "@heating_rate_main{0.000}")
-                                        ],
-                                        formatters={"@timestamp": "datetime"},
-                                        mode="vline")
-            p_furnace.add_tools(hover_main_rate)
+        # Add hover tool only to temperature lines
+        hover_temp = HoverTool(
+            renderers=temp_lines,
+            tooltips=temp_tooltips,
+            formatters={'@timestamp': 'datetime'},
+            mode='vline'
+        )
+        p_furnace.add_tools(hover_temp)
+
         show(p_furnace)
     else:
         print("No furnace data found")
