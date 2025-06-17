@@ -19,16 +19,20 @@ class LinearSweepVoltammetry(ElectroChemistry):
     # naming scheme. The values should be list-like to support multiple different regex identifiers,
     # which are used in a re.match.
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
+    
+    # Type hints for technique-specific metadata
+    scanrate: float
+    pot_init: float
+    pot_end: float
 
     # Initialize
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         '''Create a Linear Sweep Voltammetry container'''
         super().__init__(*args, **kwargs)
-        self.scanrate: float = 0.0
-        self.pot_init: float = 0.0
-        self.pot_end: float = 0.0
+        # Set technique-specific metadata
         self.tag: str = 'LSV'
         self.control: str = 'Potentiostatic'
+        # Note: scanrate, pot_init, pot_end are set during metadata parsing
 
     # Class methods
     def parse_meta_mpt(self) -> None:

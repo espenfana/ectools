@@ -4,7 +4,7 @@ from matplotlib.axes import Axes
 import numpy as np
 
 from .electrochemistry import ElectroChemistry
-# ChronoAmperometry Class
+
 class ChronoPotentiometry(ElectroChemistry):
     '''Chronopotentiometry file container'''
 
@@ -17,27 +17,31 @@ class ChronoPotentiometry(ElectroChemistry):
     # naming scheme. The values should be list-like to support multiple different regex identifiers,
     # which are used in a re.match.
     # Use (group) to search for the unit. the last (groups) in the regex will be added to a dict
+    
+    # Type hints for technique-specific attributes
+    time_step: float
+    curr_step: float
 
     # Initialize
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         '''Create a Chronopotentiometry file container'''
         super().__init__(*args, **kwargs)
-        self.time_step: float = 0.0
-        self.curr_step: float = 0.0
+        # Set technique-specific metadata
         self.tag: str = 'CP'
         self.control: str = 'Amperostatic'
+        # Note: time_step, curr_step are set during metadata parsing
 
     # Class methods
     def parse_meta_mpt(self) -> None:
         '''Parse the metadata blocks into attributes'''
         super().parse_meta_mpt() # Preprocess the metadata block
-        self.curr_step = 'NotImplemented'
+        self.curr_step = 'NotImplemented'  # TODO: Implement proper parsing
 
     def parse_meta_gamry(self) -> None:
         '''Parse the metadata list into attributes'''
         super().parse_meta_gamry()
-        self.time_step = 0.0
-        self.curr_step = 0.0
+        # Note: time_step and curr_step are set during parsing
+        # self.time_step and self.curr_step are assigned from metadata
 
     def plot(self,
             ax: Optional[Axes] = None,
