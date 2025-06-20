@@ -74,7 +74,7 @@ class EcImporter:
         # Add handlers to the logger
         self.logger.addHandler(console_handler)
 
-    def load_folder(self, fpath: str, data_folder_id=None, aux_folder_id=None, **kwargs) -> EcList:
+    def load_folder(self, fpath: str, data_folder_id=None, aux_folder_id=None, sort_by=None, **kwargs) -> EcList:
         '''
         Parse and load the contents of a folder and its subfolders.
         Ignores folders starting with '_' and only includes subfolders containing data_folder_id.
@@ -83,6 +83,8 @@ class EcImporter:
             fpath: Root folder path to process
             data_folder_id: Override for data folder identifier (default from config)
             aux_folder_id: Override for aux folder identifier (default from config)
+            sort_by: Attribute name to sort the EcList by (e.g., 'starttime', 'fname'). 
+                    Default None (no sorting, files in order read)
             **kwargs: Additional arguments passed to EcList
         '''
         # Get folder identifiers from config or use overrides
@@ -151,6 +153,18 @@ class EcImporter:
                     self.logger.info('Successfully associated auxiliary data with %d files', len(eclist))
                 except (KeyError, ValueError, TypeError, AttributeError) as e:
                     self.logger.exception('Error associating auxiliary data: %s', e)
+        
+        # Sort the EcList if sort_by parameter is provided
+        if sort_by and len(eclist) > 0:
+            try:
+                # Check if the first item has the requested attribute
+                if hasattr(eclist[0], sort_by):
+                    eclist.sort(key=lambda f: getattr(f, sort_by))
+                    self.logger.info('Sorted EcList by attribute: %s', sort_by)
+                else:
+                    self.logger.warning('Sort attribute "%s" not found in files, skipping sort', sort_by)
+            except Exception as e:
+                self.logger.warning('Error sorting by "%s": %s', sort_by, e)
         
         eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
         return eclist
