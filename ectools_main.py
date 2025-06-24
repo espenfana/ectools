@@ -197,6 +197,12 @@ class EcImporter:
         except Exception as error:  # pylint: disable=broad-except
             self.logger.error('Error loading file %s: %s', fname, error, exc_info=True)
             raise error
+    
+    # def collate_convert(self, source, target_class):
+    #     '''Rebuild the source file or files into a new containter class'''
+
+    
+    # filename, data_dict, aux_dict, meta_dict 
 
     def _parse_file_gamry(self, fname, fpath):
         '''Parse a Gamry formatted ascii file (such as .-DAT). 

@@ -24,8 +24,7 @@ class DerivativeTechniqueTemplate(ElectroChemistry):
     """
     Template for creating derivative electrochemical technique classes.
     
-    This template shows the basic structure for creating classes that
-    combine multiple electrochemical files using EcList.collate_data().
+    This base class provides a structure for techniques that 
     """
     
     def __init__(self, data_dict: Dict[str, np.ndarray], 

@@ -247,7 +247,7 @@ class EcList(List[T], Generic[T]):
             return self[self._fid_idx[fid]]
         raise ValueError(f"File ID '{fid}' not found in the list.")
     
-    def collate_data(self, target_class_name=None, cyclic=False):
+    def collate_data(self, cyclic=False):
         """
         Collate data from files in the current EcList for conversion to derivative classes.
         
@@ -444,16 +444,39 @@ class EcList(List[T], Generic[T]):
                         
         return filename, data_dict, aux_dict, meta_dict
 
-    def convert_file(self, index, target_class_name=None, cyclic=False):
+    def collate_convert_replace(self, target_select: Dict[str, Any] | 'EcList', target_class: type[T], cyclic: bool = False) -> 'EcList':
         """
-        Convenience method to convert a single file.
+        Convert file(s) in EcList to a target class and replace items in EcList with converted object. Multiple files will be collated into a single object.
+        """
+        if isinstance(target_select, dict):
+            select_fl = self.filter(**target_select)
+        elif isinstance(target_select, EcList):
+            select_fl = target_select
+        elif not target_select:
+            raise ValueError("No conversion target provided. Please specify a dict or EcList.")
+        else:
+            raise TypeError("target_select must be a dict or an already filtered instance of EcList")
         
-        Args:
-            index: int - index of file in EcList to convert
-            target_class_name: str - name of target class (for reference/debugging)
-            cyclic: bool - if True, file is treated as cyclic data
-            
-        Returns:
-            tuple: (data_dict, aux_dict, meta_dict) - same as collate_data
-        """
-        return self.collate_data([index], target_class_name, cyclic)
+        if not isinstance(target_class, ElectroChemistry):
+            warnings.warn(
+                f"target_class should be a subclass of ElectroChemistry, got {target_class.__name__} instead. Behavior may be unexpected."
+            )
+
+        # Collate data from selected files
+        filename, data_dict, aux_dict, meta_dict = select_fl.collate_data(cyclic=cyclic)
+        
+        # Create an instance of the target class with the collated data
+        pass 
+
+        # Create a new EcList instance to hold converted files, looping through the original list to maintain the original order.
+        eclist_out = EcList(fpath=self.fpath)
+        inserted = False
+        for f in self:
+            if f in select_fl:
+                if not inserted:
+                    eclist_out.append()
+                    inserted = True
+            else:
+                eclist_out.append(f)
+        
+        return eclist_out
