@@ -441,7 +441,6 @@ class EcList(List[T], Generic[T]):
         else:
             # Single file case
             filename = files[0].fname if files else None
-                        
         return filename, data_dict, aux_dict, meta_dict
 
     def collate_convert_replace(self, target_select: Dict[str, Any] | 'EcList', target_class: type[T], cyclic: bool = False) -> 'EcList':
@@ -456,7 +455,7 @@ class EcList(List[T], Generic[T]):
             raise ValueError("No conversion target provided. Please specify a dict or EcList.")
         else:
             raise TypeError("target_select must be a dict or an already filtered instance of EcList")
-        
+    
         if not isinstance(target_class, ElectroChemistry):
             warnings.warn(
                 f"target_class should be a subclass of ElectroChemistry, got {target_class.__name__} instead. Behavior may be unexpected."
@@ -464,9 +463,22 @@ class EcList(List[T], Generic[T]):
 
         # Collate data from selected files
         filename, data_dict, aux_dict, meta_dict = select_fl.collate_data(cyclic=cyclic)
-        
+
         # Create an instance of the target class with the collated data
-        pass 
+        converted_obj = target_class(
+            fname=filename,
+            fpath=self.fpath,
+            meta=meta_dict
+        )
+        # Set the collated data and auxiliary data
+        for key, value in data_dict.items():
+            converted_obj[key] = value
+        for key, value in aux_dict.items():
+            converted_obj.aux[key] = value
+
+        # If method exists, finalize the construction of the object, e.g. calculate new attributes
+        if hasattr(converted_obj, '_finalize'):
+            converted_obj._finalize()
 
         # Create a new EcList instance to hold converted files, looping through the original list to maintain the original order.
         eclist_out = EcList(fpath=self.fpath)
@@ -474,9 +486,9 @@ class EcList(List[T], Generic[T]):
         for f in self:
             if f in select_fl:
                 if not inserted:
-                    eclist_out.append()
+                    eclist_out.append(converted_obj)
                     inserted = True
+                # After inserting the new object, the rest of select_fl will be ignored
             else:
                 eclist_out.append(f)
-        
         return eclist_out
