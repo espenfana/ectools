@@ -277,6 +277,25 @@ class ElectroChemistry():
             sliced_instance.aux = None
         return sliced_instance
 
+    # Output methods
+    # ------------------------
+    def to_csv(self, fname: str = None) -> None:
+        """
+        Save the data to a CSV file.
+        If fname is not provided, it will use the instance's fname attribute.
+        """
+        if fname is None:
+            fname = self.fname
+        if not fname.endswith('.csv'):
+            fname += '.csv'
+        
+        # Create a DataFrame from the data dictionary
+        import pandas as pd
+        df = pd.DataFrame(self.get_data_dict())
+        
+        # Save to CSV
+        df.to_csv(fname, index=False)
+
     # Plotting related methods
     # ------------------------
 
