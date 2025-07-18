@@ -99,6 +99,10 @@ class ElectroChemistry():
         
     def __repr__(self) -> str:
         return f'{self.__class__.__name__} object from file {self.fname}'
+    
+    def __contains__(self, key):
+        '''Check if attribute exists (for use with 'in' operator)'''
+        return hasattr(self, key)
 
     # Data parsing methods
     # ------------------------

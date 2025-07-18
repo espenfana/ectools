@@ -10,3 +10,5 @@ TODO:
         -done?
 * integration tool
     -wip
+* Refactor auxiliary channels
+      -wip

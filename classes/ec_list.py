@@ -3,10 +3,10 @@ import re
 import warnings
 from collections.abc import Iterable
 from typing import TypeVar, Generic, List, Dict, Optional, Any
+from datetime import datetime
 
 import pandas as pd
 from matplotlib import pyplot as plt
-from datetime import datetime
 import numpy as np
 
 from .electrochemistry import ElectroChemistry
@@ -156,9 +156,12 @@ class EcList(List[T], Generic[T]):
         if not selected_idx:
             raise ValueError(f"No files found matching the provided criteria: {kwargs or fids}")
 
-        selected_files = sorted([self[i] for i in selected_idx],
-                                key=lambda f: f.fname,
-                                reverse=False)
+        #selected_files = sorted([self[i] for i in selected_idx],
+        #                        key=lambda f: f.fname,
+        #                        reverse=False)
+        # Instead of sorting by filename:
+        selected_files = [self[i] for i in sorted(selected_idx)]  # Sort by original index
+
         eclist_out = EcList(fpath=self.fpath)
         eclist_out.extend(selected_files)
         if sorting:
@@ -247,7 +250,7 @@ class EcList(List[T], Generic[T]):
             return self[self._fid_idx[fid]]
         raise ValueError(f"File ID '{fid}' not found in the list.")
     
-    def collate_data(self, target_class_name=None, cyclic=False):
+    def collate_data(self, cyclic=False):
         """
         Collate data from files in the current EcList for conversion to derivative classes.
         
@@ -345,7 +348,7 @@ class EcList(List[T], Generic[T]):
         # Convert timestamps to relative time (first timestamp = 0)
         if all_timestamps:
             first_timestamp = all_timestamps[0]
-            time_column = np.array([(ts - first_timestamp).total_seconds() 
+            time_column = np.array([(ts - first_timestamp).total_seconds()
                                   for ts in all_timestamps])
         else:
             time_column = np.array([])
@@ -356,8 +359,10 @@ class EcList(List[T], Generic[T]):
         data_dict['step'] = np.array(step_numbers)
         data_dict['substep'] = np.array(substep_numbers)  # Add substep column
         data_dict['source_tag'] = np.array(source_tags)
-        data_dict['cycle'] = np.array(cycle_numbers)  # Add cycle column
         data_dict['timestamp'] = np.array(all_timestamps)
+        if cyclic:
+            # Add cycle numbers to the data dictionary
+            data_dict['cycle'] = np.array(file_cycle_numbers)
         
         # Get all possible data columns from all files
         all_columns = set()
@@ -441,19 +446,54 @@ class EcList(List[T], Generic[T]):
         else:
             # Single file case
             filename = files[0].fname if files else None
-                        
         return filename, data_dict, aux_dict, meta_dict
 
-    def convert_file(self, index, target_class_name=None, cyclic=False):
+    def collate_convert(self, target_class: type[T], cyclic: bool = False) -> 'EcList':
         """
-        Convenience method to convert a single file.
+        Convert file(s) in EcList to a target class and replace items in EcList with converted object. Multiple files will be collated into a single object.
+        """
+
+        # Collate data from selected files
+        filename, data_dict, aux_dict, meta_dict = self.collate_data(cyclic=cyclic)
+
+        # Create an instance of the target class with the collated data
+        converted_obj = target_class(
+            fname=filename,
+            fpath=self.fpath,
+            meta=meta_dict
+        )
+        # Set the collated data and auxiliary data
+        for key, value in data_dict.items():
+            converted_obj[key] = value
+        for key, value in aux_dict.items():
+            converted_obj.aux[key] = value
+
+        # If method exists, finalize the construction of the object, e.g. calculate new attributes
+        if hasattr(converted_obj, 'finalize'):
+            converted_obj.finalize()
+
+        # Add list of source file names for housekeeping
+        converted_obj.source_files = list(self)
         
-        Args:
-            index: int - index of file in EcList to convert
-            target_class_name: str - name of target class (for reference/debugging)
-            cyclic: bool - if True, file is treated as cyclic data
-            
-        Returns:
-            tuple: (data_dict, aux_dict, meta_dict) - same as collate_data
+        return converted_obj
+
+    def replace(self, target_object, target_eclist=None) -> 'EcList':
         """
-        return self.collate_data([index], target_class_name, cyclic)
+        Create a new EcList instance to hold converted files, looping through the original list to maintain the original order.
+        """
+        eclist_out = EcList(fpath=self.fpath)
+        inserted = False
+        if target_eclist is None:
+            target_eclist = getattr(target_object, 'source_files', None)
+        for f in self:
+            if f in target_eclist:
+                if not inserted:
+                    eclist_out.append(target_object)
+                    inserted = True
+                # After inserting the new object, the rest of select_fl will be ignored
+            else:
+                eclist_out.append(f)
+        if not inserted:
+            print(f"Warning: No files from the original EcList matched the target files {target_eclist}.")
+        return eclist_out
+        

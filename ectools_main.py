@@ -74,16 +74,55 @@ class EcImporter:
         # Add handlers to the logger
         self.logger.addHandler(console_handler)
 
-    def load_folder(self, fpath: str, **kwargs) -> EcList:
+    def load_folder(self, fpath: str, data_folder_id=None, aux_folder_id=None, sort_by=None, **kwargs) -> EcList:
         '''
-        Parse and load the contents of a folder (not subfolders)
+        Parse and load the contents of a folder and its subfolders.
+        Ignores folders starting with '_' and only includes subfolders containing data_folder_id.
+        
+        Args:
+            fpath: Root folder path to process
+            data_folder_id: Override for data folder identifier (default from config)
+            aux_folder_id: Override for aux folder identifier (default from config)
+            sort_by: Attribute name to sort the EcList by (e.g., 'starttime', 'fname'). 
+                    Default None (no sorting, files in order read)
+            **kwargs: Additional arguments passed to EcList
         '''
-        flist = os.listdir(fpath)
+        # Get folder identifiers from config or use overrides
+        data_id = data_folder_id or get_config('data_folder_identifier') or 'data'
+        aux_id = aux_folder_id or get_config('auxiliary_folder_identifier') or 'aux'
+        
+        self.logger.debug('Using folder identifiers - data: "%s", aux: "%s"', data_id, aux_id)
+        
+        all_files = []
+        
+        for root, dirs, files in os.walk(fpath):
+            folder_name = os.path.basename(root)
+            
+            # Always include main folder, skip subfolders starting with '_'
+            if root != fpath:
+                if folder_name.startswith('_'):
+                    continue
+                # Only include subfolders containing data_id (case-insensitive)
+                if data_id.lower() not in folder_name.lower():
+                    continue
+                    
+            try:
+                all_files.extend([(root, f) for f in files if os.path.isfile(os.path.join(root, f))])
+                if root != fpath:
+                    self.logger.debug('Included subfolder: %s', root)
+            except (OSError, PermissionError) as e:
+                self.logger.warning('Error accessing folder %s: %s', root, e)
+        
+        self.logger.info('Found %d files to process', len(all_files))
         eclist = EcList(fpath=fpath, **kwargs)
         ignored = 0
-        for i, fname in enumerate(flist):
+        
+        # Log progress at regular intervals
+        progress_interval = max(1, len(all_files) // 10)  # Log every 10% or at least every file
+        
+        for i, (file_path, fname) in enumerate(all_files):
             try:
-                f = self.load_file(fpath, fname)
+                f = self.load_file(file_path, fname)
                 if f:
                     eclist.append(f)
                 else:
@@ -91,13 +130,19 @@ class EcImporter:
             except (FileNotFoundError, PermissionError, UnicodeDecodeError, RuntimeError) as e:
                 self.logger.warning('Error processing file %s: %s', fname, e)
                 ignored += 1
-            finally:
-                print(f'\rProcessing {i} of {len(flist)}' + '.' * (i % 7 + 1), end='\r')
-        print(f'\nProcessed {len(flist)} entries, parsed {len(eclist)}, ignored {ignored}')
+            
+            # Log progress at intervals
+            if (i + 1) % progress_interval == 0 or i == len(all_files) - 1:
+                self.logger.info('Processed %d/%d files (%d parsed, %d ignored)', 
+                               i + 1, len(all_files), len(eclist), ignored)
+        
+        self.logger.info('Completed processing: %d files total, %d parsed, %d ignored', 
+                        len(all_files), len(eclist), ignored)
+        
         if self.aux_importer:
             try:
-                print('Importing auxiliary data...')
-                eclist.aux = self.aux_importer(fpath)
+                self.logger.info('Importing auxiliary data...')
+                eclist.aux = self.aux_importer(fpath, aux_folder_id=aux_id)
             except RuntimeError as e:
                 self.logger.warning('Error importing auxiliary data: %s', e)
                 eclist.aux = None
@@ -105,9 +150,22 @@ class EcImporter:
                 try: # Attempt to associate auxiliary data with each file
                     for f in eclist:
                         f.aux = self._associate_auxiliary_data(eclist.aux, f)
+                    self.logger.info('Successfully associated auxiliary data with %d files', len(eclist))
                 except (KeyError, ValueError, TypeError, AttributeError) as e:
                     self.logger.exception('Error associating auxiliary data: %s', e)
-        #self.logger.info('Processed %d files, parsed %d', len(flist), len(eclist))
+        
+        # Sort the EcList if sort_by parameter is provided
+        if sort_by and len(eclist) > 0:
+            try:
+                # Check if the first item has the requested attribute
+                if hasattr(eclist[0], sort_by):
+                    eclist.sort(key=lambda f: getattr(f, sort_by))
+                    self.logger.info('Sorted EcList by attribute: %s', sort_by)
+                else:
+                    self.logger.warning('Sort attribute "%s" not found in files, skipping sort', sort_by)
+            except Exception as e:
+                self.logger.warning('Error sorting by "%s": %s', sort_by, e)
+        
         eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
         return eclist
 
@@ -139,6 +197,12 @@ class EcImporter:
         except Exception as error:  # pylint: disable=broad-except
             self.logger.error('Error loading file %s: %s', fname, error, exc_info=True)
             raise error
+    
+    # def collate_convert(self, source, target_class):
+    #     '''Rebuild the source file or files into a new containter class'''
+
+    
+    # filename, data_dict, aux_dict, meta_dict 
 
     def _parse_file_gamry(self, fname, fpath):
         '''Parse a Gamry formatted ascii file (such as .-DAT). 
