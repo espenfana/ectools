@@ -50,7 +50,7 @@ class ElectroChemistry():
     meta: List[str]
     tag: Optional[str]
     control: Optional[str]
-    data_columns: List[str]
+    data_columns: Dict[str, str]
     units: Dict[str, str]
     aux: Dict[str, Dict[str, Any]]
     area: float
@@ -76,7 +76,15 @@ class ElectroChemistry():
         self.curr_dens = np.empty(0)
         self.pot = np.empty(0)
         self.timestamp = np.empty(0)
-        self.data_columns = ['time', 'curr', 'curr_dens', 'pot', 'timestamp']
+        self.data_columns = { # Expected data columns, format: short_name: Display name (Unit)
+            'time': 'Time (s)',
+            'curr': 'Current (A)',
+            'curr_dens': 'Current Density (A/cm²)',
+            'pot': 'Potential (V)',
+            'timestamp': 'Timestamp'
+            # TODO: Consider adding 'signal' from column_patterns - check if this should be included
+
+        }
         self.units = {}
         self._meta_dict = {}
         # These should remain empty in this class
@@ -184,7 +192,8 @@ class ElectroChemistry():
         """
         Get all data columns as a dictionary.
         """
-        return {key: self[key] for key in self.data_columns}
+        # TODO: Updated to use dict keys instead of list
+        return {key: self[key] for key in self.data_columns.keys()}
 
     @property
     def pot_offset(self):
@@ -205,8 +214,9 @@ class ElectroChemistry():
         if offset < -2 or offset > 2:
             raise ValueError("Offset must be between -2 and 2 volts.")
         self._potential_offset = offset
+        # TODO: Updated to use dict for data_columns
         if 'pot_offset' not in self.data_columns:
-            self.data_columns.append('pot_offset')
+            self.data_columns['pot_offset'] = 'Offset Potential (V)'
 
     def slice(self, **criteria: Union[float, Tuple[float, float]]) -> 'ElectroChemistry':
         """
@@ -227,7 +237,8 @@ class ElectroChemistry():
 
         # Iterate over the criteria to build the mask
         for key, value in criteria.items():
-            if key not in self.data_columns:
+            # TODO: Updated to use dict keys instead of list
+            if key not in self.data_columns.keys():
                 raise ValueError(f"Data column '{key}' not found in the data columns.")
 
             data_column = self[key]
@@ -296,6 +307,8 @@ class ElectroChemistry():
         # Create a DataFrame from the data dictionary
         import pandas as pd
         df = pd.DataFrame(self.get_data_dict())
+        # Remap column headers to display names
+        df.rename(columns=self.data_columns, inplace=True)
         
         # Save to CSV
         df.to_csv(fname, index=False)
@@ -305,6 +318,7 @@ class ElectroChemistry():
 
     def makelab(self, key):
         '''Generate an axis label with unit'''
+        # TODO: Consider using display names from data_columns dict instead of hardcoded labels
         d = {'curr': 'I ', 'pot': 'E ', 'time': 't', 'curr_dens': 'I\''}
         if key not in d:
             return key
@@ -342,7 +356,8 @@ class ElectroChemistry():
         '''Get hover tooltips for Bokeh plot'''
         hover = HoverTool()
         tooltips = []
-        for key in self.data_columns:
+        # TODO: Updated to use dict keys instead of list
+        for key in self.data_columns.keys():
             if key != 'timestamp':
                 tooltips.append((self.makelab(key), f'@{key}'))
 

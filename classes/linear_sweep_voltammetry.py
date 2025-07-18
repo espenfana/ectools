@@ -32,6 +32,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
         # Set technique-specific metadata
         self.tag: str = 'LSV'
         self.control: str = 'Potentiostatic'
+        # TODO: Consider adding oxred/cat arrays and extending data_columns like CV does
         # Note: scanrate, pot_init, pot_end are set during metadata parsing
 
     # Class methods

@@ -367,7 +367,8 @@ class EcList(List[T], Generic[T]):
         # Get all possible data columns from all files
         all_columns = set()
         for f in files:
-            all_columns.update(f.data_columns)
+            # TODO: Updated to use dict keys instead of list
+            all_columns.update(f.data_columns.keys())
             
         # Remove columns we've already handled
         remaining_columns = all_columns - {'time', 'timestamp'}

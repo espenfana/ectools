@@ -56,8 +56,15 @@ class CyclicVoltammetry(ElectroChemistry):
         self.tag: str = 'CV'
         self.control: str = 'Potentiostatic'
         
-        # Update data columns list
-        self.data_columns.extend(['cycle', 'cycle_v2', 'cycle_init', 'sweep_dir', 'oxred', 'cat'])
+        # TODO: Updated to use dict for data_columns, extending with CV-specific columns
+        self.data_columns.update({
+            'cycle': 'Cycle Number (Source)',
+            'cycle_v2': 'Cycle Number (Vertex)',
+            'cycle_init': 'Cycle Number (Initial)',
+            'sweep_dir': 'Sweep Direction',  # TODO Consider the use of these 3 columns
+            'oxred': 'Oxidation/Reduction',
+            'cat': 'Cathodic'
+        })
         
         # Note: scanrate, pot_init, pot_upper, pot_lower, pot_end, ncycles are set during metadata parsing
 
