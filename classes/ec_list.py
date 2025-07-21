@@ -413,6 +413,57 @@ class EcList(List[T], Generic[T]):
                         # Handle non-dict auxiliary data
                         aux_dict[aux_type] = aux_data
         
+        # Detect common attributes across files (not data columns)
+        required_attributes = ('area', 'we_number')
+        attributes = {}
+        
+        def get_basic_attributes(obj):
+            """Get attributes that are basic data types (int, float, str, bool)"""
+            attrs = {}
+            for name in dir(obj):
+                if name.startswith('_') or callable(getattr(obj, name)):
+                    continue
+                value = getattr(obj, name)
+                if isinstance(value, (int, float, str, bool, type(None))):
+                    attrs[name] = value
+            return attrs
+        
+        def check_attribute_consistency(attr_name, is_required=False):
+            """Check if an attribute is consistent across all files"""
+            values = [getattr(f, attr_name) for f in files if hasattr(f, attr_name)]
+            non_none_values = [v for v in values if v is not None]
+            
+            if not non_none_values:
+                return None
+            elif len(set(non_none_values)) == 1:
+                return non_none_values[0]
+            elif is_required:
+                print(f"Warning: Required attribute '{attr_name}' has inconsistent values: {non_none_values}")
+                print(f"Using value from first file: {non_none_values[0]}")
+                return non_none_values[0]
+            else:
+                return None  # Inconsistent non-required attributes are skipped
+        
+        # Process required attributes first
+        for attr_name in required_attributes:
+            value = check_attribute_consistency(attr_name, is_required=True)
+            if value is not None:
+                attributes[attr_name] = value
+        
+        # Find all common basic attributes across files
+        if files:
+            common_attrs = set(get_basic_attributes(files[0]).keys())
+            for f in files[1:]:
+                common_attrs &= set(get_basic_attributes(f).keys())
+            
+            # Check consistency for each common attribute
+            for attr_name in common_attrs:
+                if attr_name not in attributes:  # Don't override required attributes
+                    value = check_attribute_consistency(attr_name)
+                    if value is not None:
+                        attributes[attr_name] = value
+
+        
         # Detect shared filename prefix
         if len(files) > 1:
             delimiters = ['_', '-', ' ', '.']
@@ -447,7 +498,7 @@ class EcList(List[T], Generic[T]):
         else:
             # Single file case
             filename = files[0].fname if files else None
-        return filename, data_dict, aux_dict, meta_dict
+        return filename, attributes, data_dict, aux_dict, meta_dict
 
     def collate_convert(self, target_class: type[T], cyclic: bool = False) -> 'EcList':
         """
@@ -455,7 +506,7 @@ class EcList(List[T], Generic[T]):
         """
 
         # Collate data from selected files
-        filename, data_dict, aux_dict, meta_dict = self.collate_data(cyclic=cyclic)
+        filename, attributes, data_dict, aux_dict, meta_dict = self.collate_data(cyclic=cyclic)
 
         # Create an instance of the target class with the collated data
         converted_obj = target_class(
@@ -468,7 +519,9 @@ class EcList(List[T], Generic[T]):
             converted_obj[key] = value
         for key, value in aux_dict.items():
             converted_obj.aux[key] = value
-
+        # Set the attributes
+        for key, value in attributes.items():
+            setattr(converted_obj, key, value)
         # If method exists, finalize the construction of the object, e.g. calculate new attributes
         if hasattr(converted_obj, 'finalize'):
             converted_obj.finalize()
