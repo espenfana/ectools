@@ -500,9 +500,26 @@ class EcList(List[T], Generic[T]):
             filename = files[0].fname if files else None
         return filename, attributes, data_dict, aux_dict, meta_dict
 
-    def collate_convert(self, target_class: type[T], cyclic: bool = False) -> 'EcList':
+    def collate_convert(self, target_class: type[T], cyclic: bool = False, **kwargs) -> 'EcList':
         """
-        Convert file(s) in EcList to a target class and replace items in EcList with converted object. Multiple files will be collated into a single object.
+        Convert file(s) in EcList to a target class and replace items in EcList with converted object. 
+        Multiple files will be collated into a single object.
+        
+        Args:
+            target_class (type[T]): The target class to convert to (must inherit from ElectroChemistry)
+            cyclic (bool): If True, files are treated as cyclic data and ordered by starttime,
+                          with cycle numbers extracted from filenames and cycle order validated
+            **kwargs: Additional keyword arguments that will be set as attributes on the converted object
+            
+        Returns:
+            EcList: A new EcList containing the converted object
+            
+        Note:
+            - Data from all files in the EcList is collated using collate_data()
+            - Common attributes across files are automatically detected and preserved
+            - Required attributes (area, we_number) are validated for consistency
+            - Any additional kwargs are set as attributes on the final converted object
+            - If the target class has a 'finalize()' method, it will be called after setup
         """
 
         # Collate data from selected files
@@ -528,6 +545,10 @@ class EcList(List[T], Generic[T]):
 
         # Add list of source file names for housekeeping
         converted_obj.source_files = list(self)
+
+        # Add kwargs as attributes to the converted object
+        for key, value in kwargs.items():
+            setattr(converted_obj, key, value)
         
         return converted_obj
 
