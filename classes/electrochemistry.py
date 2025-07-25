@@ -294,7 +294,7 @@ class ElectroChemistry():
 
     # Output methods
     # ------------------------
-    def to_csv(self, fname: str = None) -> None:
+    def to_csv(self, fname: str = None, add_cell_potential: bool = False, add_counter_potential: bool = False) -> None:
         """
         Save the data to a CSV file.
         If fname is not provided, it will use the instance's fname attribute.
@@ -309,6 +309,16 @@ class ElectroChemistry():
         df = pd.DataFrame(self.get_data_dict())
         # Remap column headers to display names
         df.rename(columns=self.data_columns, inplace=True)
+        if add_cell_potential and 'aux' in self and 'pico' in self.aux and len(self.aux['pico']['timestamp']) == len(self.timestamp):
+            if 'pot' in self.aux['pico']:
+                df['Cell Potential (V)'] = self.aux['pico']['pot']
+            else:
+                warnings.warn('No auxiliary cell potential data found')
+        if add_counter_potential and 'aux' in self and 'pico' in self.aux and len(self.aux['pico']['timestamp']) == len(self.timestamp):
+            if 'counter_pot' in self.aux['pico']:
+                df['Counter Potential (V)'] = self.aux['pico']['counter_pot']
+            else:
+                warnings.warn('No auxiliary counter potential data found')
         
         # Save to CSV
         df.to_csv(fname, index=False)
