@@ -62,12 +62,6 @@ def mc_filename_parser(_, fname: str) -> dict:
 
     return out
 
-class PicoLogger():
-    pass
-
-class FurnaceLogger():
-    pass
-
 def mc_auxiliary_importer(fpath: str, aux_folder_id: str = None) -> Dict:
     """
     Load auxiliary data from JSON, furnace and pico files located in the specified file path.
