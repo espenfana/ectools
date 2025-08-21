@@ -699,12 +699,12 @@ class FurnaceLogger(AuxiliaryDataSource):
         # Create ColumnDataSource
         source = ColumnDataSource(data=plot_data)
         
-        # Create figure with dual y-axes (wider to accommodate side legend)
+        # Create figure with dual y-axes (no need for extra width now)
         p_furnace = figure(
             title="Furnace Data",
             x_axis_label='Time',
             x_axis_type='datetime',
-            width=1000,  # Increased width for side legend
+            width=800,  # Back to normal width since legend is external
             height=400,
             y_axis_label="Temperature (°C)"
         )
@@ -713,6 +713,16 @@ class FurnaceLogger(AuxiliaryDataSource):
         temp_colors = ['blue', 'orange', 'purple', 'brown']
         rate_colors = ['green', 'red', 'cyan', 'magenta']
         
+        # Add legend_group column to source data for external legend
+        legend_labels = []
+        for col_name, display_name in self.data_columns.items():
+            if col_name in plot_data and col_name != 'timestamp':
+                legend_labels.append(display_name)
+        
+        # Add a legend_group column to the data source
+        plot_data['legend_group'] = legend_labels[0] if legend_labels else 'Data'
+        source = ColumnDataSource(data=plot_data)
+        
         # Plot temperature data on left y-axis
         temp_renderers = []
         for i, (col_name, display_name) in enumerate(temperature_columns):
@@ -720,7 +730,7 @@ class FurnaceLogger(AuxiliaryDataSource):
             line_style = 'dashed' if 'setpoint' in col_name else 'solid'
             renderer = p_furnace.line(
                 x='timestamp', y=col_name, source=source,
-                legend_label=display_name, line_width=2, 
+                legend_group=display_name, line_width=2, 
                 color=color, line_dash=line_style
             )
             temp_renderers.append(renderer)
@@ -735,7 +745,7 @@ class FurnaceLogger(AuxiliaryDataSource):
                 color = rate_colors[i % len(rate_colors)]
                 p_furnace.line(
                     x='timestamp', y=col_name, source=source,
-                    legend_label=display_name, line_width=2, 
+                    legend_group=display_name, line_width=2, 
                     color=color, y_range_name="rate"
                 )
         
@@ -767,45 +777,14 @@ class FurnaceLogger(AuxiliaryDataSource):
         )
         p_furnace.add_tools(hover)
         
-        # Move legend outside the plot area
-        from bokeh.layouts import row
-        from bokeh.models import Legend, LegendItem
+        # Create external legend using add_layout
+        from bokeh.models import Legend
         
-        # Remove default legend from plot
-        p_furnace.legend.visible = False
-        
-        # Collect all legend items from the plot
-        legend_items = []
-        for renderer in p_furnace.renderers:
-            if hasattr(renderer, 'legend_label') and renderer.legend_label:
-                # Skip our invisible hover target
-                if hasattr(renderer, 'glyph') and renderer.glyph.line_alpha == 0:
-                    continue
-                legend_items.append(LegendItem(label=renderer.legend_label, renderers=[renderer]))
-        
-        # Create a minimal plot to hold the legend
-        legend_plot = figure(
-            width=200, height=400,
-            toolbar_location=None,
-            title="Legend"
-        )
-        legend_plot.outline_line_color = None
-        legend_plot.grid.visible = False
-        legend_plot.axis.visible = False
-        
-        # Create external legend and add to the legend plot
-        external_legend = Legend(
-            items=legend_items,
-            click_policy="hide",
-            spacing=10,
-            margin=10,
-            location="center"
-        )
-        legend_plot.add_layout(external_legend)
+        # Move legend outside plot area to the right
+        legend = Legend(click_policy="hide", location="center")
+        p_furnace.add_layout(legend, 'right')
         
         # Add subtle grid for better readability
         p_furnace.grid.grid_line_alpha = 0.3
         
-        # Create layout with plot and legend side by side
-        layout = row(p_furnace, legend_plot)
-        show(layout)
+        show(p_furnace)
