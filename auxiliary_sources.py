@@ -722,7 +722,7 @@ class FurnaceLogger(AuxiliaryDataSource):
             line_style = 'dashed' if 'setpoint' in col_name else 'solid'
             renderer = p_furnace.line(
                 x='timestamp', y=col_name, source=source,
-                legend_group=display_name, line_width=2, 
+                legend_label=display_name, line_width=2, 
                 color=color, line_dash=line_style
             )
             temp_renderers.append(renderer)
@@ -737,7 +737,7 @@ class FurnaceLogger(AuxiliaryDataSource):
                 color = rate_colors[i % len(rate_colors)]
                 p_furnace.line(
                     x='timestamp', y=col_name, source=source,
-                    legend_group=display_name, line_width=2, 
+                    legend_label=display_name, line_width=2, 
                     color=color, y_range_name="rate"
                 )
         
@@ -770,11 +770,8 @@ class FurnaceLogger(AuxiliaryDataSource):
         p_furnace.add_tools(hover)
         
         # Create external legend using add_layout
-        from bokeh.models import Legend
-        
-        # Move legend outside plot area to the right
-        legend = Legend(click_policy="hide", location="center")
-        p_furnace.add_layout(legend, 'right')
+        # Move the existing legend outside the plot area to the right
+        p_furnace.add_layout(p_furnace.legend[0], 'right')
         
         # Add subtle grid for better readability
         p_furnace.grid.grid_line_alpha = 0.3
