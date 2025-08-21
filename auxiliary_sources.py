@@ -114,8 +114,10 @@ class AuxiliaryDataHandler:
 
     def visualize(self) -> None:
         '''Visualize all auxiliary data sources.'''
-        for aux in self.auxiliary_classes:
-            aux.visualize()
+        for aux_name in self.sources:
+            aux = getattr(self, aux_name, None)
+            if aux:
+                aux.visualize()
 
 
 class AuxiliaryDataSource(ABC):
@@ -342,6 +344,9 @@ class AuxiliaryDataSource(ABC):
 class PicoLogger(AuxiliaryDataSource):
     '''Auxiliary data source for PicoLogger data.'''
 
+    timestamp: np.ndarray  # Timestamp array
+    cell_potential: np.ndarray  # Cell potential in Volts
+
     name = "picologger"  # Unique identifier for this data source
     data_columns = {  # All data columns to be imported/calculated and stored
         'timestamp': 'Timestamp',
@@ -495,6 +500,14 @@ class FurnaceLogger(AuxiliaryDataSource):
     This is tailored to the standard output from Carbolite Gero furnace. In the case of multiple 
     files (restarted logging) these should be properly sorted by timestamp when loading.
     '''
+
+    timestamp: np.ndarray  # Timestamp array
+    cascade_temperature: np.ndarray  # Cascade thermocouple temperature
+    main_temperature: np.ndarray  # Main heating element temperature
+    cascade_rate: np.ndarray  # Cascade thermocouple rate of change
+    main_rate: np.ndarray  # Main heating element rate of change
+    cascade_setpoint: np.ndarray  # Cascade thermocouple setpoint
+    main_setpoint: np.ndarray  # Main heating element setpoint
 
     name = "furnacelogger"  # Unique identifier for this data source
     data_columns = { # All data columns to be imported/calculated and stored
