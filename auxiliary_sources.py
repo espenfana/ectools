@@ -63,14 +63,14 @@ class AuxiliaryDataHandler:
 
     def import_auxiliary_data(self) -> None:
         '''Import auxiliary data from all sources.'''
-        for aux in self.aux_data_classes:
+        for Aux_cls in self.aux_data_classes:
             try:
-                logger = aux(self.auxiliary_folders)
-                setattr(self, aux.name, logger)
-                self.sources.append(aux.name)
+                aux = Aux_cls(self.auxiliary_folders)
+                setattr(self, Aux_cls.name, aux)
+                self.sources.append(Aux_cls.name)
             except Exception as e:
                 logger.warning("Failed loading auxiliary data from %s: %s", aux, e)
-                setattr(self, aux.name, None)  # Set to None if loading fails
+                setattr(self, Aux_cls.name, None)  # Set to None if loading fails
 
     def _search_auxiliary_folders(self) -> None:
         '''Search for auxiliary folders in the specified path.
@@ -80,9 +80,6 @@ class AuxiliaryDataHandler:
         
         Sets self.auxiliary_folders to a list of (folder_name, folder_path) tuples.
         '''
-        import os
-        import logging
-        from .config import get_config
         
         logger = logging.getLogger(__name__)
         
@@ -376,9 +373,17 @@ class PicoLogger(AuxiliaryDataSource):
         # Read all DataFrames and sort by first timestamp
         dfs = []
         for file_path in pico_files:
-            df = pd.read_csv(file_path, header=None)
-            df['_first_timestamp'] = pd.to_datetime(df.iloc[0, 0], unit='s', errors='coerce')
-            dfs.append(df)
+            # Load CSV with header=0 to properly parse column names (matches old helper_functions.py)
+            df = pd.read_csv(file_path, header=0)
+            if not df.empty:
+                # Extract first timestamp for sorting (first column, first row)
+                first_timestamp = pd.to_datetime(df.iloc[0, 0], unit='s', errors='coerce')
+                df['_first_timestamp'] = first_timestamp
+                dfs.append(df)
+        
+        if not dfs:
+            logger.warning("PicoLogger: No valid pico files found")
+            return
         
         # Sort DataFrames by their first timestamp
         dfs.sort(key=lambda df: df['_first_timestamp'].iloc[0])
@@ -391,12 +396,15 @@ class PicoLogger(AuxiliaryDataSource):
 
         # Set attributes using to_numpy() for consistency
         self.timestamp = pd.to_datetime(pico_data.iloc[:, 0], unit='s', errors='coerce').to_numpy()
-        if 'mV' in pico_data.columns[1]:
+        
+        # Check the actual column name for units (second column header)
+        column_name = pico_data.columns[1]  # This will be "Channel 4 Ave. (V)"
+        if 'mV' in column_name:
             self.cell_potential = pico_data.iloc[:,1].to_numpy() / 1000  # Convert mV to V
-        elif 'V' in pico_data.columns[1]:
+        elif 'V' in column_name:
             self.cell_potential = pico_data.iloc[:,1].to_numpy()
         else:
-            raise ValueError("Unsupported unit in cell potential column %s", pico_data.columns[1])
+            raise ValueError(f"Unsupported unit in cell potential column: {column_name}")
 
         logger.info(f"PicoLogger: Loaded {len(pico_data)} rows from {len(pico_files)} files")
 
