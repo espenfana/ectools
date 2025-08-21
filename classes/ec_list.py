@@ -10,15 +10,16 @@ from matplotlib import pyplot as plt
 import numpy as np
 
 from .electrochemistry import ElectroChemistry
+from ..auxiliary_sources import AuxiliaryDataHandler
 
 T = TypeVar('T', bound=ElectroChemistry)
 
 class EcList(List[T], Generic[T]):
     """List class for handling ElectroChemistry class objects"""
-    
+    aux: AuxiliaryDataHandler
+
     def __init__(self, fpath: Optional[str] = None, **kwargs: Any) -> None:
         self.fpath = fpath
-        self.aux = {'pico': {}, 'furnace': {}}
         super().__init__()
         for key, val in kwargs.items():
             setattr(self, key, val)

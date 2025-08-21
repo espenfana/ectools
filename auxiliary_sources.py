@@ -42,28 +42,28 @@ class AuxiliaryDataHandler:
     auxiliary_folders : List[Tuple[str, str]]  # List of (folder_name, folder_path) tuples
     sources : List[str]
 
-    def __init__(self, main_path: str, auxiliary_classes: List['AuxiliaryDataSource'], aux_folder_id = None) -> None:
+    def __init__(self, main_path: str, aux_data_classes: List['AuxiliaryDataSource'], aux_folder_id = None) -> None:
         '''Initialize the auxiliary data handler with a path and a list of auxiliary classes.'''
         self.main_path = main_path
-        self.auxiliary_classes = auxiliary_classes
+        self.aux_data_classes = aux_data_classes
         self.aux_folder_id = aux_folder_id
         self.sources = []
         self._search_auxiliary_folders()
 
     def __getitem__(self, key: str) -> Optional['AuxiliaryDataSource']:
         '''Get an auxiliary data source by its name.'''
-        for aux in self.auxiliary_classes:
+        for aux in self.aux_data_classes:
             if hasattr(aux, 'name') and aux.name == key:
                 return aux
         return None
 
     def __iter__(self):
         '''Allow iteration over auxiliary classes.'''
-        return iter(self.auxiliary_classes)
+        return iter(self.aux_data_classes)
 
     def import_auxiliary_data(self) -> None:
         '''Import auxiliary data from all sources.'''
-        for aux in self.auxiliary_classes:
+        for aux in self.aux_data_classesaux_data_classes:
             try:
                 logger = aux(self.auxiliary_folders)
                 setattr(self, aux.name, logger)
