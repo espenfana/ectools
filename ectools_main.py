@@ -145,8 +145,8 @@ class EcImporter:
 
         
         if self.aux_data_classes:
-            eclist.aux = AuxiliaryDataHandler(aux_data_classes=self.aux_data_classes)
-            eclist.aux.import_auxiliary_data(fpath, aux_folder_id=aux_id)
+            eclist.aux = AuxiliaryDataHandler(main_path=fpath, aux_data_classes=self.aux_data_classes)
+            eclist.aux.import_auxiliary_data()
             # TODO implement and run time axis interpolation
 
         # if self.aux_importer:
