@@ -63,7 +63,7 @@ class AuxiliaryDataHandler:
 
     def import_auxiliary_data(self) -> None:
         '''Import auxiliary data from all sources.'''
-        for aux in self.aux_data_classesaux_data_classes:
+        for aux in self.aux_data_classes:
             try:
                 logger = aux(self.auxiliary_folders)
                 setattr(self, aux.name, logger)
