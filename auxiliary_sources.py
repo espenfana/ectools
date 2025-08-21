@@ -712,15 +712,7 @@ class FurnaceLogger(AuxiliaryDataSource):
         # Define colors for different lines
         temp_colors = ['blue', 'orange', 'purple', 'brown']
         rate_colors = ['green', 'red', 'cyan', 'magenta']
-        
-        # Add legend_group column to source data for external legend
-        legend_labels = []
-        for col_name, display_name in self.data_columns.items():
-            if col_name in plot_data and col_name != 'timestamp':
-                legend_labels.append(display_name)
-        
-        # Add a legend_group column to the data source
-        plot_data['legend_group'] = legend_labels[0] if legend_labels else 'Data'
+        # Create ColumnDataSource
         source = ColumnDataSource(data=plot_data)
         
         # Plot temperature data on left y-axis
