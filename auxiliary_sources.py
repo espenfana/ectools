@@ -520,10 +520,10 @@ class FurnaceLogger(AuxiliaryDataSource):
         'timestamp': 'Timestamp',
         'cascade_temperature': 'Thermocouple (°C)',
         'main_temperature': 'Heating element (°C)',
-        'cascade_rate': 'Thermocouple Rate (°C/min)',
-        'main_rate': 'Heating element Rate (°C/min)',
         'cascade_setpoint': 'Thermocouple Setpoint (°C)',
-        'main_setpoint': 'Heating element Setpoint (°C)'
+        'main_setpoint': 'Heating element Setpoint (°C)',
+        'cascade_rate': 'Thermocouple Rate (°C/min)',
+        'main_rate': 'Heating element Rate (°C/min)'
     }
     main_data_columns = ( # Data columns to be interpolated and added to experiment object
         'cascade_temperature'
@@ -699,12 +699,12 @@ class FurnaceLogger(AuxiliaryDataSource):
         # Create ColumnDataSource
         source = ColumnDataSource(data=plot_data)
         
-        # Create figure with dual y-axes (no need for extra width now)
+        # Create figure with dual y-axes (wider to accommodate external legend)
         p_furnace = figure(
             title="Furnace Data",
             x_axis_label='Time',
             x_axis_type='datetime',
-            width=800,  # Back to normal width since legend is external
+            width=1000,  # Increased width for external legend
             height=400,
             y_axis_label="Temperature (°C)"
         )
