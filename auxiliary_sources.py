@@ -388,17 +388,16 @@ class PicoLogger(AuxiliaryDataSource):
             df.drop('_first_timestamp', axis=1, inplace=True)
         
         pico_data = pd.concat(dfs, ignore_index=True)
-        
-        # Convert timestamp column (first column) to datetime
-        pico_data['timestamp'] = pd.to_datetime(pico_data.iloc[:, 0], unit='s', errors='coerce')
-        
-        # Rename the second column to a standard name
-        pico_data = pico_data.rename(columns={pico_data.columns[1]: 'Cell Potential (V)'})
-        
+
         # Set attributes using to_numpy() for consistency
-        self.timestamp = pico_data['timestamp'].to_numpy()
-        self.cell_potential = pico_data['Cell Potential (V)'].to_numpy()
-        
+        self.timestamp = pd.to_datetime(pico_data.iloc[:, 0], unit='s', errors='coerce').to_numpy()
+        if 'mV' in pico_data.columns[1]:
+            self.cell_potential = pico_data.iloc[:,1].to_numpy() / 1000  # Convert mV to V
+        elif 'V' in pico_data.columns[1]:
+            self.cell_potential = pico_data.iloc[:,1].to_numpy()
+        else:
+            raise ValueError("Unsupported unit in cell potential column %s", pico_data.columns[1])
+
         logger.info(f"PicoLogger: Loaded {len(pico_data)} rows from {len(pico_files)} files")
 
     def visualize(self):
@@ -407,14 +406,81 @@ class PicoLogger(AuxiliaryDataSource):
 
     def plot_matplotlib(self, **kwargs: Any):
         '''Plot the auxiliary data using matplotlib.'''
-        # Implement matplotlib plotting logic here
-        pass
-        
+        fig, ax = plt.subplots()
+        ax.plot(self.timestamp, self.cell_potential, label='Cell Potential (V)')
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Voltage (V)')
+        ax.legend()
+        plt.show()
+
     @requires_bokeh
     def plot_bokeh(self, **kwargs: Any) -> None:
         '''Plot the auxiliary data using Bokeh.'''
-        # Implement Bokeh plotting logic here
-        pass
+        from bokeh.plotting import figure, show, output_notebook
+        from bokeh.models import ColumnDataSource, HoverTool
+        
+        output_notebook()
+        
+        # Check if we have the required data
+        if not hasattr(self, 'timestamp') or not hasattr(self, 'cell_potential'):
+            logger.error("PicoLogger: No data available for plotting")
+            return
+            
+        # Prepare data dictionary
+        plot_data = {
+            'timestamp': self.timestamp,
+            'cell_potential': self.cell_potential
+        }
+        
+        # Create ColumnDataSource
+        source = ColumnDataSource(data=plot_data)
+        
+        # Create figure
+        p_pico = figure(
+            title="PicoLogger Data: Cell Potential vs Time",
+            x_axis_label='Time',
+            x_axis_type='datetime',
+            y_axis_label='Cell Potential (V)',
+            width=800,
+            height=400,
+            toolbar_location="above"
+        )
+        
+        # Plot cell potential data
+        line_renderer = p_pico.line(
+            x='timestamp', y='cell_potential', source=source,
+            legend_label='Cell Potential (V)', line_width=2, 
+            color='blue', alpha=0.8
+        )
+        
+        # Add circle markers for better visibility of data points
+        circle_renderer = p_pico.circle(
+            x='timestamp', y='cell_potential', source=source,
+            size=4, color='blue', alpha=0.6
+        )
+        
+        # Create tooltips
+        tooltips = [
+            ("Time", "@timestamp{%F %T}"),
+            ("Cell Potential", "@cell_potential{0.000} V")
+        ]
+        
+        # Add hover tool
+        hover = HoverTool(
+            renderers=[line_renderer, circle_renderer],
+            tooltips=tooltips,
+            formatters={'@timestamp': 'datetime'},
+            mode='vline'
+        )
+        p_pico.add_tools(hover)
+        
+        # Configure legend and grid
+        p_pico.legend.location = "top_left"
+        p_pico.legend.click_policy = "hide"
+        p_pico.grid.grid_line_alpha = 0.3
+        
+        show(p_pico)
+
 
 class FurnaceLogger(AuxiliaryDataSource):
     '''Auxiliary data source for FurnaceLogger data.
