@@ -783,18 +783,29 @@ class FurnaceLogger(AuxiliaryDataSource):
                     continue
                 legend_items.append(LegendItem(label=renderer.legend_label, renderers=[renderer]))
         
-        # Create external legend
+        # Create a minimal plot to hold the legend
+        legend_plot = figure(
+            width=200, height=400,
+            toolbar_location=None,
+            title="Legend"
+        )
+        legend_plot.outline_line_color = None
+        legend_plot.grid.visible = False
+        legend_plot.axis.visible = False
+        
+        # Create external legend and add to the legend plot
         external_legend = Legend(
             items=legend_items,
             click_policy="hide",
             spacing=10,
             margin=10,
-            location="center_left"
+            location="center"
         )
+        legend_plot.add_layout(external_legend)
         
         # Add subtle grid for better readability
         p_furnace.grid.grid_line_alpha = 0.3
         
-        # Create layout with plot and external legend side by side
-        layout = row(p_furnace, external_legend)
+        # Create layout with plot and legend side by side
+        layout = row(p_furnace, legend_plot)
         show(layout)
