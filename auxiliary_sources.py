@@ -742,6 +742,13 @@ class FurnaceLogger(AuxiliaryDataSource):
         # Set temperature y-axis range
         p_furnace.y_range = Range1d(start=0, end=800)
         
+        # Create an invisible hover target that spans the full data range
+        # This gives us a single clean tooltip instead of multiple overlapping ones
+        hover_target = p_furnace.line(
+            x='timestamp', y='cascade_temperature', source=source,
+            alpha=0, line_width=0  # Completely invisible
+        )
+        
         # Create comprehensive tooltips for a single crosshair hover
         tooltips = [("Time", "@timestamp{%F %T}")]
         for col_name, display_name in self.data_columns.items():
@@ -751,21 +758,43 @@ class FurnaceLogger(AuxiliaryDataSource):
                 else:
                     tooltips.append((display_name, f"@{col_name}{{0.0}}"))
         
-        # Add single hover tool that shows all data at cursor position
+        # Add hover tool ONLY to the invisible target
         hover = HoverTool(
+            renderers=[hover_target],  # Only attach to our invisible line
             tooltips=tooltips,
             formatters={'@timestamp': 'datetime'},
-            mode='vline'  # Single vertical line shows all values
+            mode='vline'
         )
         p_furnace.add_tools(hover)
         
-        # Configure legend on the right side with more space
-        p_furnace.legend.location = "center_right"
-        p_furnace.legend.click_policy = "hide"
-        p_furnace.legend.spacing = 10  # Add spacing between legend items
-        p_furnace.legend.margin = 10   # Add margin around legend
+        # Move legend outside the plot area
+        from bokeh.layouts import row
+        from bokeh.models import Legend, LegendItem
+        
+        # Remove default legend from plot
+        p_furnace.legend.visible = False
+        
+        # Collect all legend items from the plot
+        legend_items = []
+        for renderer in p_furnace.renderers:
+            if hasattr(renderer, 'legend_label') and renderer.legend_label:
+                # Skip our invisible hover target
+                if hasattr(renderer, 'glyph') and renderer.glyph.line_alpha == 0:
+                    continue
+                legend_items.append(LegendItem(label=renderer.legend_label, renderers=[renderer]))
+        
+        # Create external legend
+        external_legend = Legend(
+            items=legend_items,
+            click_policy="hide",
+            spacing=10,
+            margin=10,
+            location="center_left"
+        )
         
         # Add subtle grid for better readability
         p_furnace.grid.grid_line_alpha = 0.3
         
-        show(p_furnace)
+        # Create layout with plot and external legend side by side
+        layout = row(p_furnace, external_legend)
+        show(layout)
