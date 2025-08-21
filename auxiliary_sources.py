@@ -439,10 +439,22 @@ class PicoLogger(AuxiliaryDataSource):
             logger.error("PicoLogger: No data available for plotting")
             return
             
+        # Downsample data for better performance if dataset is large
+        max_points = kwargs.get('max_points', 5000)  # Default to 5000 points for good performance
+        timestamps = self.timestamp
+        potentials = self.cell_potential
+        
+        if len(timestamps) > max_points:
+            # Use every nth point to downsample
+            step = len(timestamps) // max_points
+            timestamps = timestamps[::step]
+            potentials = potentials[::step]
+            logger.info(f"PicoLogger: Downsampled from {len(self.timestamp)} to {len(timestamps)} points for plotting")
+            
         # Prepare data dictionary
         plot_data = {
-            'timestamp': self.timestamp,
-            'cell_potential': self.cell_potential
+            'timestamp': timestamps,
+            'cell_potential': potentials
         }
         
         # Create ColumnDataSource
@@ -466,21 +478,15 @@ class PicoLogger(AuxiliaryDataSource):
             color='blue', alpha=0.8
         )
         
-        # Add circle markers for better visibility of data points
-        circle_renderer = p_pico.circle(
-            x='timestamp', y='cell_potential', source=source,
-            size=4, color='blue', alpha=0.6
-        )
-        
         # Create tooltips
         tooltips = [
             ("Time", "@timestamp{%F %T}"),
             ("Cell Potential", "@cell_potential{0.000} V")
         ]
         
-        # Add hover tool
+        # Add hover tool (only to line for better performance)
         hover = HoverTool(
-            renderers=[line_renderer, circle_renderer],
+            renderers=[line_renderer],
             tooltips=tooltips,
             formatters={'@timestamp': 'datetime'},
             mode='vline'
@@ -514,8 +520,8 @@ class FurnaceLogger(AuxiliaryDataSource):
         'timestamp': 'Timestamp',
         'cascade_temperature': 'Thermocouple (°C)',
         'main_temperature': 'Heating element (°C)',
-        'cascade_rate': 'Thermocouple Rate (°C/s)',
-        'main_rate': 'Heating element Rate (°C/s)',
+        'cascade_rate': 'Thermocouple Rate (°C/min)',
+        'main_rate': 'Heating element Rate (°C/min)',
         'cascade_setpoint': 'Thermocouple Setpoint (°C)',
         'main_setpoint': 'Heating element Setpoint (°C)'
     }
@@ -589,9 +595,9 @@ class FurnaceLogger(AuxiliaryDataSource):
                     setattr(self, col_name, merged_data[header].to_numpy())
                 else:
                     logger.warning(f"FurnaceLogger: Column '{header}' not found in merged data")
-            # Calculate rate columns
-            self.cascade_rate = np.gradient(self.cascade_temperature, edge_order=2)
-            self.main_rate = np.gradient(self.main_temperature, edge_order=2)
+            # Calculate rate columns (convert from per second to per minute)
+            self.cascade_rate = np.gradient(self.cascade_temperature, edge_order=2) * 60  # °C/min
+            self.main_rate = np.gradient(self.main_temperature, edge_order=2) * 60  # °C/min
 
             # Check that all data_columns are present
             for col_name in self.data_columns.keys():
@@ -649,7 +655,7 @@ class FurnaceLogger(AuxiliaryDataSource):
                                color=color, linewidth=2, alpha=0.7)
                 rate_handles.extend(line)
         
-        ax2.set_ylabel('Rate (°C/s)', color='green')
+        ax2.set_ylabel('Rate (°C/min)', color='green')
         ax2.tick_params(axis='y', labelcolor='green')
         
         # Combine legends from both axes
@@ -693,12 +699,12 @@ class FurnaceLogger(AuxiliaryDataSource):
         # Create ColumnDataSource
         source = ColumnDataSource(data=plot_data)
         
-        # Create figure with dual y-axes
+        # Create figure with dual y-axes (wider to accommodate side legend)
         p_furnace = figure(
             title="Furnace Data",
             x_axis_label='Time',
             x_axis_type='datetime',
-            width=800,
+            width=1000,  # Increased width for side legend
             height=400,
             y_axis_label="Temperature (°C)"
         )
@@ -721,8 +727,8 @@ class FurnaceLogger(AuxiliaryDataSource):
         
         # Add extra y-axis for heating rate if we have rate data
         if rate_columns:
-            p_furnace.extra_y_ranges = {"rate": Range1d(start=-20, end=40)}
-            p_furnace.add_layout(LinearAxis(y_range_name="rate", axis_label="Rate (°C/s)"), 'right')
+            p_furnace.extra_y_ranges = {"rate": Range1d(start=-20, end=60)}  # Adjusted for °C/min
+            p_furnace.add_layout(LinearAxis(y_range_name="rate", axis_label="Rate (°C/min)"), 'right')
             
             # Plot rate data on right y-axis
             for i, (col_name, display_name) in enumerate(rate_columns):
@@ -736,7 +742,7 @@ class FurnaceLogger(AuxiliaryDataSource):
         # Set temperature y-axis range
         p_furnace.y_range = Range1d(start=0, end=800)
         
-        # Create comprehensive tooltips
+        # Create comprehensive tooltips for a single crosshair hover
         tooltips = [("Time", "@timestamp{%F %T}")]
         for col_name, display_name in self.data_columns.items():
             if col_name in plot_data and col_name != 'timestamp':
@@ -745,18 +751,21 @@ class FurnaceLogger(AuxiliaryDataSource):
                 else:
                     tooltips.append((display_name, f"@{col_name}{{0.0}}"))
         
-        # Add hover tool to temperature lines only
-        if temp_renderers:
-            hover = HoverTool(
-                renderers=temp_renderers,
-                tooltips=tooltips,
-                formatters={'@timestamp': 'datetime'},
-                mode='vline'
-            )
-            p_furnace.add_tools(hover)
+        # Add single hover tool that shows all data at cursor position
+        hover = HoverTool(
+            tooltips=tooltips,
+            formatters={'@timestamp': 'datetime'},
+            mode='vline'  # Single vertical line shows all values
+        )
+        p_furnace.add_tools(hover)
         
-        # Configure legend
-        p_furnace.legend.location = "top_left"
+        # Configure legend on the right side with more space
+        p_furnace.legend.location = "center_right"
         p_furnace.legend.click_policy = "hide"
+        p_furnace.legend.spacing = 10  # Add spacing between legend items
+        p_furnace.legend.margin = 10   # Add margin around legend
+        
+        # Add subtle grid for better readability
+        p_furnace.grid.grid_line_alpha = 0.3
         
         show(p_furnace)
