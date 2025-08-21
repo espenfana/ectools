@@ -61,7 +61,7 @@ class AuxiliaryDataHandler:
         '''Allow iteration over auxiliary classes.'''
         return iter(self.auxiliary_classes)
 
-    def _import_auxiliary_data(self) -> None:
+    def import_auxiliary_data(self) -> None:
         '''Import auxiliary data from all sources.'''
         for aux in self.auxiliary_classes:
             try:
