@@ -16,6 +16,8 @@ extend this framework to implement the specific logic for their data files.
 import logging
 import os
 import glob
+import json
+from datetime import datetime
 from typing import Any, Dict, Optional, Union, List, Tuple, TYPE_CHECKING
 from abc import ABC, abstractmethod
 
@@ -66,6 +68,7 @@ class AuxiliaryDataHandler:
         for Aux_cls in self.aux_data_classes:
             try:
                 aux = Aux_cls(self.auxiliary_folders)
+                additional_items = aux.load_data()
                 setattr(self, Aux_cls.name, aux)
                 self.sources.append(Aux_cls.name)
             except Exception as e:
@@ -186,11 +189,11 @@ class AuxiliaryDataSource(ABC):
         Args:
             auxiliary_folders: List of (folder_name, folder_path) tuples
         '''
-        self.load_data(auxiliary_folders)
+        self.auxiliary_folders = auxiliary_folders
 
     # --- Data import methods ---
     @abstractmethod
-    def load_data(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
+    def load_data(self) -> Optional['AuxiliaryDataSource']:
         '''Load data from the auxiliary source.
         
         Args:
@@ -301,40 +304,7 @@ class AuxiliaryDataSource(ABC):
 
     def interpolate_data_columns(self, main_timestamp, main_potential):
         '''Interpolate auxiliary data columns to align with the main time series.
-        
-        This method takes the auxiliary data loaded by this source and interpolates
-        or processes it to match the timestamps of the main electrochemical data.
-        The interpolation method depends on the data type - continuous data uses
-        linear interpolation, while discrete events may use nearest neighbor or
-        boolean masking approaches.
-        
-        Args:
-            main_timestamp (numpy.ndarray): Timestamp array from the main electrochemical
-                data that auxiliary data should be aligned to. Typically in seconds
-                from experiment start or unix timestamps.
-        
-        Returns:
-            Dict[str, Tuple[str, numpy.ndarray]]: Dictionary mapping column names to 
-                tuples containing:
-                - display_name (str): Human-readable column name with units for display,
-                  as defined in main_data_columns
-                - data_column (numpy.ndarray): Interpolated data array aligned with 
-                  main_timestamp, same length as main_timestamp
-                  
-        Example:
-            >>> aux_source = MyAuxiliarySource(folders)
-            >>> main_time = np.array([0, 10, 20, 30])  # seconds
-            >>> result = aux_source.interpolate_data_columns(main_time)
-            >>> result
-            {
-                'temperature': ('Temperature (°C)', array([25.0, 26.1, 27.2, 28.3])),
-                'pressure': ('Pressure (bar)', array([1.0, 1.0, 1.1, 1.1]))
-            }
-            
-        Note:
-            This method must be implemented by subclasses. The returned data will
-            be added to the main electrochemical data files as additional columns
-            accessible through the data_columns dictionary.
+            Overwrite for special logic beyond simply interpolating the main_data_columns
         '''
         # Implement interpolation logic here
         pass
@@ -777,3 +747,218 @@ class FurnaceLogger(AuxiliaryDataSource):
         p_furnace.grid.grid_line_alpha = 0.3
         
         show(p_furnace)
+
+
+class JsonSource(AuxiliaryDataSource):
+    '''Auxiliary data source for JSON metadata and settings.
+    
+    This source reads all JSON files in the auxiliary folders and can create
+    specialized sub-sources like oxide sample collections.
+    '''
+
+    name = "json_source"  # Unique identifier for this data source
+    has_visualization = False  # JSON source provides data, sub-sources handle visualization
+
+    def __init__(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
+        # Initialize attributes
+        self.oxide = None
+        self.data = {}  # Simple dict to store all key-value pairs
+        super().__init__(auxiliary_folders)
+
+    def load_data(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
+        '''Load data from JSON files in auxiliary folders.
+        
+        Args:
+            auxiliary_folders: List of (folder_name, folder_path) tuples
+        '''
+        json_data = {}
+        json_files_found = []
+        
+        # Collect all JSON files from all auxiliary folders
+        for folder_name, folder_path in auxiliary_folders:
+            json_files = glob.glob(os.path.join(folder_path, '**', '*.json'), recursive=True)
+            json_files_found.extend(json_files)
+        
+        if not json_files_found:
+            logger.warning("JsonSource: No JSON files found in auxiliary folders")
+            return
+            
+        # Load and merge all JSON data
+        for json_file in json_files_found:
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    file_data = json.load(f)
+                    json_data.update(file_data)
+                    logger.debug(f"JsonSource: Loaded JSON from {json_file}")
+            except Exception as e:
+                logger.warning(f"JsonSource: Error loading {json_file}: {e}")
+        
+        # Store all data as key-value pairs
+        self.data = json_data
+        
+        # Create oxide collection if oxide data exists
+        if 'oxide' in json_data and 'salt_sampled' in json_data:
+            try:
+                self.oxide = Oxide.from_json_data(
+                    json_data['oxide'], 
+                    json_data['salt_sampled']
+                )
+                logger.info(f"JsonSource: Created oxide collection with {len(self.oxide.samples)} samples")
+            except Exception as e:
+                logger.warning(f"JsonSource: Failed to create oxide collection: {e}")
+                self.oxide = None
+        else:
+            logger.debug("JsonSource: No oxide data found in JSON files")
+
+    def visualize(self):
+        '''Visualize JSON source data.
+        
+        For JsonSource, this displays a summary of loaded data and delegates
+        visualization to sub-sources like oxide collection.
+        '''
+        print("=== JSON Source Data Summary ===")
+        print(f"Data keys: {list(self.data.keys())}")
+        
+        if self.oxide:
+            print(f"Oxide samples: {len(self.oxide.samples)}")
+            self.oxide.visualize()
+        else:
+            print("Oxide samples: None")
+
+
+class Oxide:
+    '''Collection of oxide samples with analysis methods.
+    
+    This class manages multiple OxideSample objects and provides
+    collection-level statistics and visualization.
+    '''
+    
+    def __init__(self):
+        self.samples: Dict[str, 'OxideSample'] = {}
+    
+    @classmethod
+    def from_json_data(cls, oxide_data: Dict, salt_sampled_data: Dict) -> 'Oxide':
+        '''Create Oxide collection from JSON data.
+        
+        Args:
+            oxide_data: Dictionary with sample_id -> measurements mapping
+            salt_sampled_data: Dictionary with sample_id -> timestamp mapping
+            
+        Returns:
+            Oxide collection with populated samples
+        '''
+        collection = cls()
+        
+        for sample_id, measurements in oxide_data.items():
+            try:
+                if sample_id in salt_sampled_data:
+                    timestamp = salt_sampled_data[sample_id]
+                    sample = OxideSample(measurements, timestamp)
+                    collection.add_sample(sample_id, sample)
+                else:
+                    logger.warning(f"No timestamp found for oxide sample {sample_id}")
+            except Exception as e:
+                logger.warning(f"Failed to create oxide sample {sample_id}: {e}")
+        
+        return collection
+    
+    def add_sample(self, sample_id: str, sample: 'OxideSample') -> None:
+        '''Add a sample to the collection.'''
+        self.samples[sample_id] = sample
+    
+    def get_sample(self, sample_id: str) -> Optional['OxideSample']:
+        '''Get a sample by ID.'''
+        return self.samples.get(sample_id)
+    
+    def mean_of_means(self) -> Optional[float]:
+        '''Calculate mean of all sample means.'''
+        if not self.samples:
+            return None
+        return np.mean([sample.mean for sample in self.samples.values()])
+    
+    def overall_stdev(self) -> Optional[float]:
+        '''Calculate standard deviation across all sample means.'''
+        if not self.samples:
+            return None
+        means = [sample.mean for sample in self.samples.values()]
+        return np.std(means, ddof=1) if len(means) > 1 else 0.0
+    
+    def visualize(self) -> None:
+        '''Display oxide sample information.'''
+        if not self.samples:
+            print("No oxide samples available")
+            return
+            
+        print(f"\n=== Oxide Samples ({len(self.samples)} total) ===")
+        print(f"Overall mean: {self.mean_of_means():.3f} ± {self.overall_stdev():.3f}")
+        print("\nIndividual samples:")
+        for sample_id, sample in self.samples.items():
+            print(f"  {sample_id}: {sample}")
+    
+    def __len__(self) -> int:
+        return len(self.samples)
+    
+    def __iter__(self):
+        return iter(self.samples.values())
+    
+    def __getitem__(self, sample_id: str) -> 'OxideSample':
+        return self.samples[sample_id]
+
+
+class OxideSample:
+    """
+    Represents an oxide sample with multiple measurements and a corresponding timestamp.
+    
+    Attributes:
+        measurements (List[float]): A list of individual measurement values.
+        timestamp (datetime): The timestamp when the sample was taken.
+    """
+    
+    def __init__(self, measurements: List[float], timestamp: str):
+        """
+        Initializes the OxideSample instance.
+        
+        Args:
+            measurements (List[float]): A list of measurement values.
+            timestamp (str): The timestamp as a string. It will be converted to a datetime object.
+        
+        Raises:
+            ValueError: If measurements list is empty or contains non-numeric values.
+            ValueError: If timestamp string is not in a recognizable datetime format.
+        """
+        if not measurements:
+            raise ValueError("Measurements list cannot be empty.")
+        if not all(isinstance(m, (int, float)) for m in measurements):
+            raise ValueError("All measurements must be numeric values.")
+        
+        try:
+            self.timestamp = datetime.fromisoformat(timestamp)
+        except ValueError as ve:
+            raise ValueError(f"Invalid timestamp format: {timestamp}") from ve
+        
+        self.measurements = measurements
+    
+    @property
+    def mean(self) -> float:
+        """Calculates and returns the mean of the measurements."""
+        return np.mean(self.measurements)
+    
+    @property
+    def stdev(self) -> float:
+        """Calculates and returns the standard deviation of the measurements."""
+        return np.std(self.measurements, ddof=1)  # Sample standard deviation
+    
+    def __str__(self) -> str:
+        """
+        Returns a formatted string representation of the OxideSample.
+        
+        Format:
+            "Oxide samples: mean ± stdev, sampled 'timestamp', ([measurements])"
+        """
+        return (f"Oxide sample: {self.mean:.3f} ± {self.stdev:.3f}, "
+                f"sampled '{self.timestamp}', {self.measurements}")
+
+    def __repr__(self) -> str:
+        """Returns an unambiguous string representation of the OxideSample."""
+        return (f"OxideSample(measurements={self.measurements}, "
+                f"timestamp='{self.timestamp.isoformat()}')")
