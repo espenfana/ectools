@@ -68,7 +68,7 @@ class AuxiliaryDataHandler:
         for Aux_cls in self.aux_data_classes:
             try:
                 aux = Aux_cls(self.auxiliary_folders)
-                additional_items = aux.load_data()
+                aux.load_data()
                 setattr(self, Aux_cls.name, aux)
                 self.sources.append(Aux_cls.name)
             except Exception as e:
@@ -180,6 +180,7 @@ class AuxiliaryDataSource(ABC):
     ]
 
     # Class variables and constants
+    continuous_data: bool = False # False for discrete data only (no interpolation, no data columns)
     has_visualization: bool = True  # Override to False for text-only sources
     name: str = ""  # Override with a unique identifier for this data source
 
@@ -302,12 +303,94 @@ class AuxiliaryDataSource(ABC):
 
     # --- Data handling methods ---
 
-    def interpolate_data_columns(self, main_timestamp, main_potential):
+    def interpolate_data_columns(self, main_timestamp, main_potential = None) -> dict[str, np.ndarray]:
         '''Interpolate auxiliary data columns to align with the main time series.
-            Overwrite for special logic beyond simply interpolating the main_data_columns
+
+        Args:
+            main_timestamp: The timestamp array of the main data
+            main_potential: The potential array of the main data
+
+        Returns:
+            A dictionary mapping auxiliary column names to their interpolated values
         '''
-        # Implement interpolation logic here
-        pass
+        out = {}
+        for column_name in self.main_data_columns:
+            interp_data_column = self.interpolate_column_robust(column_name, main_timestamp)
+            out[column_name] = interp_data_column
+        return out
+
+    def interpolate_column_robust(self, column_name: str, main_timestamp: np.ndarray) -> np.ndarray:
+        '''Robust interpolation handling all overlap scenarios.
+        
+        Handles three cases:
+        1. Full overlap: aux data covers entire main timespan
+        2. Partial overlap: aux data covers part of main timespan (NaN for non-overlapping)
+        3. No overlap: returns NaN array
+
+        Args:
+            column_name: The name of the auxiliary column to interpolate
+            main_timestamp: The timestamp array of the main data
+        
+        Returns:
+            Interpolated data array with same length as main_timestamp
+        '''
+        aux_data = getattr(self, column_name, None)
+        aux_timestamps = getattr(self, 'timestamp', None)
+        
+        # Case 3: No aux data available
+        if aux_data is None or aux_timestamps is None:
+            logger.debug(f"No {column_name} data available, returning NaN array")
+            return np.full(len(main_timestamp), np.nan)
+        
+        # Convert to numeric timestamps with timezone handling
+        try:
+            main_ts = pd.to_datetime(main_timestamp, utc=True).tz_convert(None)
+            aux_ts = pd.to_datetime(aux_timestamps, utc=True).tz_convert(None)
+            
+            main_numeric = main_ts.astype('int64')
+            aux_numeric = aux_ts.astype('int64')
+        except Exception as e:
+            logger.warning(f"Timestamp conversion failed for {column_name}: {e}")
+            return np.full(len(main_timestamp), np.nan)
+        
+        # Check for any overlap
+        main_start, main_end = main_numeric.min(), main_numeric.max()
+        aux_start, aux_end = aux_numeric.min(), aux_numeric.max()
+        
+        has_overlap = not (main_end < aux_start or main_start > aux_end)
+        
+        if not has_overlap:
+            # Case 3: No overlap
+            logger.debug(f"No temporal overlap for {column_name}")
+            return np.full(len(main_timestamp), np.nan)
+        
+        # Cases 1 & 2: Full or partial overlap
+        # np.interp automatically handles partial overlap with NaN padding
+        interpolated = np.interp(
+            main_numeric,
+            aux_numeric,
+            aux_data,
+            left=np.nan,   # NaN before aux data starts
+            right=np.nan   # NaN after aux data ends
+        )
+        
+        # Log interpolation statistics
+        valid_points = np.sum(~np.isnan(interpolated))
+        total_points = len(interpolated)
+        overlap_pct = (valid_points / total_points) * 100 if total_points > 0 else 0
+        
+        logger.debug(f"{column_name}: {valid_points}/{total_points} points interpolated ({overlap_pct:.1f}% coverage)")
+        
+        return interpolated
+
+    def interpolate_column(self, column_name: str, main_timestamp: np.ndarray) -> np.ndarray:
+        '''Legacy method - calls robust interpolation.
+        
+        Args:
+            column_name: The name of the auxiliary column to interpolate
+            main_timestamp: The timestamp array of the main data
+        '''
+        return self.interpolate_column_robust(column_name, main_timestamp)
 
 # Temporary place for bcs aux classes, not to be part of a generalized ectools
 
@@ -320,13 +403,14 @@ class PicoLogger(AuxiliaryDataSource):
     name = "picologger"  # Unique identifier for this data source
     data_columns = {  # All data columns to be imported/calculated and stored
         'timestamp': 'Timestamp',
-        'cell_potential': 'Cell Potential (V)',
+        'cell_pot': 'Cell Potential (V)',
     }
     main_data_columns = {
-        'cell_potential': 'Cell Potential (V)',
-        'counter_potential': 'Counter Potential (V)',
+        'cell_pot': 'Cell Potential (V)',
+        'counter_pot': 'Counter Potential (V)', # calculated column
     }
     has_visualization = True  # This source supports graphical plotting
+    continuous_data = True  # Continuous data, supports interpolation
 
     def __init__(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
         super().__init__(auxiliary_folders)
@@ -382,6 +466,36 @@ class PicoLogger(AuxiliaryDataSource):
             raise ValueError(f"Unsupported unit in cell potential column: {column_name}")
 
         logger.info(f"PicoLogger: Loaded {len(pico_data)} rows from {len(pico_files)} files")
+    
+    def interpolate_data_columns(self, main_timestamp, main_potential=None) -> dict[str, np.ndarray]:
+        '''Handle PicoLogger's calculated columns with robust interpolation.
+        
+        Args:
+            main_timestamp: The timestamp array of the main data
+            main_potential: The potential array of the main data (required for counter_pot calculation)
+        
+        Returns:
+            Dictionary with interpolated cell_pot and calculated counter_pot
+        '''
+        # Interpolate cell potential using robust method
+        cell_pot = self.interpolate_column_robust('cell_pot', main_timestamp)
+        
+        # Calculate counter potential (only where cell_pot is valid)
+        if main_potential is not None:
+            counter_pot = np.where(
+                np.isnan(cell_pot), 
+                np.nan, 
+                cell_pot - main_potential
+            )
+        else:
+            logger.warning("PicoLogger: main_potential not provided, counter_pot will be NaN")
+            counter_pot = np.full(len(main_timestamp), np.nan)
+
+        return {
+            'cell_pot': cell_pot,
+            'counter_pot': counter_pot
+        }
+
 
     def visualize(self):
         '''Visualize the PicoLogger data using plots.'''
@@ -506,6 +620,7 @@ class FurnaceLogger(AuxiliaryDataSource):
         'main_setpoint': 'Main_Controller_Working_SP'
     }
     has_visualization = True  # This source supports graphical plotting
+    continuous_data = True  # Continuous data, supports interpolation
 
     def __init__(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
         super().__init__(auxiliary_folders)
@@ -758,6 +873,7 @@ class JsonSource(AuxiliaryDataSource):
 
     name = "json_source"  # Unique identifier for this data source
     has_visualization = False  # JSON source provides data, sub-sources handle visualization
+    continuous_data = False  # JSON source is not continuous by default
 
     def __init__(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
         # Initialize attributes

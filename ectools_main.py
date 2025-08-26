@@ -14,6 +14,7 @@ import pandas as pd
 from .classes import EcList, ElectroChemistry
 from .config import get_config
 from .auxiliary_sources import AuxiliaryDataHandler
+import warnings
 # classes is a collection of container objects meant for different methods
 
 class EcImporter:
@@ -142,12 +143,33 @@ class EcImporter:
                         len(all_files), len(eclist), ignored)
         
         # New logic for aux importing
-
-        
         if self.aux_data_classes:
+            self.logger.info('Importing auxiliary data...')
             eclist.aux = AuxiliaryDataHandler(main_path=fpath, aux_data_classes=self.aux_data_classes)
             eclist.aux.import_auxiliary_data()
-            # TODO implement and run time axis interpolation
+            
+            # Add interpolated and calculated data axes
+            interpolated_count = 0
+            for f in eclist:
+                for source_name in eclist.aux.sources:
+                    source = getattr(eclist.aux, source_name, None)  # More explicit None default
+                    if source is not None and hasattr(source, 'continuous_data') and source.continuous_data:
+                        try:
+                            new_columns = source.interpolate_data_columns(f.timestamp, f.pot)
+                            if new_columns:  # Only process if we got data back
+                                for column_name, data_array in new_columns.items():
+                                    display_name = source.main_data_columns[column_name]
+                                    setattr(f, column_name, data_array)
+                                    f.data_columns[column_name] = display_name
+                                interpolated_count += len(new_columns)
+                                self.logger.debug('Interpolated %d columns from %s for file %s', 
+                                                len(new_columns), source_name, f.fname)
+                        except Exception as e:
+                            self.logger.warning('Error interpolating data from %s for file %s: %s', 
+                                              source_name, f.fname, e)
+            
+            self.logger.info('Successfully processed auxiliary data: %d sources, %d interpolated columns total', 
+                           len(eclist.aux.sources), interpolated_count)
 
         # if self.aux_importer:
         #     try:
@@ -414,9 +436,14 @@ class EcImporter:
                     return child
         return ElectroChemistry  # If no identifier is matched, return ElectroChemistry class
 
-    def _associate_auxiliary_data(self, aux, f) -> Dict:
+    def _associate_auxiliary_data(self, aux, f) -> Dict: # DEPRICATED
         '''Associate aux data with a file time span'''
         # Convert start and end timestamps
+        warnings.warn(
+            "The _associate_auxiliary_data method is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         tstart = np.datetime64(f.timestamp[0])
         tend = np.datetime64(f.timestamp[-1])
 
