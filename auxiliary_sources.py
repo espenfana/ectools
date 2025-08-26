@@ -630,7 +630,7 @@ class FurnaceLogger(AuxiliaryDataSource):
             'main': [],
         }
         try:
-            for folder_name, folder_path in auxiliary_folders:
+            for folder_name, folder_path in self.auxiliary_folders:
                 cascade_path = os.path.join(folder_path, 'CascadeController')
                 if os.path.exists(cascade_path):
                     csv_files = [file for file in os.listdir(cascade_path) if file.endswith('.csv')]
@@ -641,7 +641,7 @@ class FurnaceLogger(AuxiliaryDataSource):
                         data_temp['cascade'].append(cascade_data)
                         logger.debug(f"FurnaceCascade: Loaded {len(cascade_data)} rows from {csv_file}")
 
-            for folder_name, folder_path in auxiliary_folders:
+            for folder_name, folder_path in self.auxiliary_folders:
                 main_path = os.path.join(folder_path, 'MainController')
                 if os.path.exists(main_path):
                     csv_files = [file for file in os.listdir(main_path) if file.endswith('.csv')]
@@ -882,7 +882,7 @@ class JsonSource(AuxiliaryDataSource):
         json_files_found = []
         
         # Collect all JSON files from all auxiliary folders
-        for folder_name, folder_path in auxiliary_folders:
+        for folder_name, folder_path in self.auxiliary_folders:
             json_files = glob.glob(os.path.join(folder_path, '**', '*.json'), recursive=True)
             json_files_found.extend(json_files)
         
