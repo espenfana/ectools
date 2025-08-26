@@ -415,14 +415,11 @@ class PicoLogger(AuxiliaryDataSource):
     def __init__(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
         super().__init__(auxiliary_folders)
 
-    def load_data(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
+    def load_data(self) -> None:
         '''Load data from the PicoLogger auxiliary source.
-        
-        Args:
-            auxiliary_folders: List of (folder_name, folder_path) tuples
         '''
         pico_files = []
-        for folder_name, folder_path in auxiliary_folders:
+        for folder_name, folder_path in self.auxiliary_folders:
             pico_files.extend(glob.glob(os.path.join(folder_path, '**', '*pico*.csv'), recursive=True))
         
         if not pico_files:
@@ -625,11 +622,8 @@ class FurnaceLogger(AuxiliaryDataSource):
     def __init__(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
         super().__init__(auxiliary_folders)
 
-    def load_data(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
+    def load_data(self) -> None:
         '''Load data from the FurnaceLogger auxiliary source.
-        
-        Args:
-            auxiliary_folders: List of (folder_name, folder_path) tuples
         '''
         data_temp = {
             'cascade': [],
@@ -881,11 +875,8 @@ class JsonSource(AuxiliaryDataSource):
         self.data = {}  # Simple dict to store all key-value pairs
         super().__init__(auxiliary_folders)
 
-    def load_data(self, auxiliary_folders: List[Tuple[str, str]]) -> None:
+    def load_data(self) -> None:
         '''Load data from JSON files in auxiliary folders.
-        
-        Args:
-            auxiliary_folders: List of (folder_name, folder_path) tuples
         '''
         json_data = {}
         json_files_found = []

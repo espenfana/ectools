@@ -148,28 +148,44 @@ class EcImporter:
             eclist.aux = AuxiliaryDataHandler(main_path=fpath, aux_data_classes=self.aux_data_classes)
             eclist.aux.import_auxiliary_data()
             
-            # Add interpolated and calculated data axes
-            interpolated_count = 0
-            for f in eclist:
-                for source_name in eclist.aux.sources:
-                    source = getattr(eclist.aux, source_name, None)  # More explicit None default
-                    if source is not None and hasattr(source, 'continuous_data') and source.continuous_data:
-                        try:
-                            new_columns = source.interpolate_data_columns(f.timestamp, f.pot)
-                            if new_columns:  # Only process if we got data back
-                                for column_name, data_array in new_columns.items():
-                                    display_name = source.main_data_columns[column_name]
-                                    setattr(f, column_name, data_array)
-                                    f.data_columns[column_name] = display_name
-                                interpolated_count += len(new_columns)
-                                self.logger.debug('Interpolated %d columns from %s for file %s', 
-                                                len(new_columns), source_name, f.fname)
-                        except Exception as e:
-                            self.logger.warning('Error interpolating data from %s for file %s: %s', 
-                                              source_name, f.fname, e)
+            # Count successful vs failed sources
+            total_requested = len(self.aux_data_classes)
+            successful_sources = len(eclist.aux.sources)
+            failed_sources = total_requested - successful_sources
             
-            self.logger.info('Successfully processed auxiliary data: %d sources, %d interpolated columns total', 
-                           len(eclist.aux.sources), interpolated_count)
+            if successful_sources > 0:
+                # Add interpolated and calculated data axes
+                interpolated_count = 0
+                for f in eclist:
+                    for source_name in eclist.aux.sources:
+                        source = getattr(eclist.aux, source_name, None)  # More explicit None default
+                        if source is not None and hasattr(source, 'continuous_data') and source.continuous_data:
+                            try:
+                                new_columns = source.interpolate_data_columns(f.timestamp, f.pot)
+                                if new_columns:  # Only process if we got data back
+                                    for column_name, data_array in new_columns.items():
+                                        display_name = source.main_data_columns[column_name]
+                                        setattr(f, column_name, data_array)
+                                        f.data_columns[column_name] = display_name
+                                    interpolated_count += len(new_columns)
+                                    self.logger.debug('Interpolated %d columns from %s for file %s', 
+                                                    len(new_columns), source_name, f.fname)
+                            except Exception as e:
+                                self.logger.warning('Error interpolating data from %s for file %s: %s', 
+                                                  source_name, f.fname, e)
+                
+                # More accurate reporting
+                if failed_sources > 0:
+                    self.logger.info('Auxiliary data processing completed: %d/%d sources successful, %d interpolated columns total', 
+                                   successful_sources, total_requested, interpolated_count)
+                else:
+                    self.logger.info('Successfully processed auxiliary data: %d sources, %d interpolated columns total', 
+                                   successful_sources, interpolated_count)
+            else:
+                if failed_sources > 0:
+                    self.logger.warning('All %d auxiliary data sources failed to load', failed_sources)
+                else:
+                    self.logger.info('No auxiliary data sources configured')
 
         # if self.aux_importer:
         #     try:
