@@ -606,10 +606,10 @@ class FurnaceLogger(AuxiliaryDataSource):
         'cascade_rate': 'Thermocouple Rate (°C/min)',
         'main_rate': 'Heating element Rate (°C/min)'
     }
-    main_data_columns = ( # Data columns to be interpolated and added to experiment object
-        'cascade_temperature'
-    )
-    column_mapping = {
+    main_data_columns = { # Data columns to be interpolated and added to experiment object
+        'cascade_temperature': 'Thermocouple (°C)'
+    }
+    column_mapping = { # Column data names and headers in the csv files
         'timestamp': 'timestamp',
         'cascade_temperature': 'Cascade_Controller_PV',
         'main_temperature': 'Main_Controller_PV',
