@@ -53,11 +53,12 @@ class AuxiliaryDataHandler:
         self._search_auxiliary_folders()
 
     def __getitem__(self, key: str) -> Optional['AuxiliaryDataSource']:
-        '''Get an auxiliary data source by its name.'''
-        for aux in self.aux_data_classes:
-            if hasattr(aux, 'name') and aux.name == key:
-                return aux
-        return None
+        '''Get an auxiliary data source by its name using dictionary syntax.'''
+        return getattr(self, key, None)
+
+    def __contains__(self, key: str) -> bool:
+        '''Check if an auxiliary data source exists.'''
+        return hasattr(self, key) and getattr(self, key) is not None
 
     def __iter__(self):
         '''Allow iteration over auxiliary classes.'''
@@ -191,6 +192,18 @@ class AuxiliaryDataSource(ABC):
             auxiliary_folders: List of (folder_name, folder_path) tuples
         '''
         self.auxiliary_folders = auxiliary_folders
+
+    def __getitem__(self, key):
+        '''Makes object subscriptable like a dict'''
+        return self.__getattribute__(key)
+        
+    def __setitem__(self, key: str, value: Any) -> None:
+        '''Makes object attributes assignable like a dict'''
+        self.__setattr__(key, value)
+        
+    def __contains__(self, key):
+        '''Check if attribute exists (for use with 'in' operator)'''
+        return hasattr(self, key)
 
     # --- Data import methods ---
     @abstractmethod
@@ -596,7 +609,7 @@ class FurnaceLogger(AuxiliaryDataSource):
     cascade_setpoint: np.ndarray  # Cascade thermocouple setpoint
     main_setpoint: np.ndarray  # Main heating element setpoint
 
-    name = "furnacelogger"  # Unique identifier for this data source
+    name = "furnace"  # Unique identifier for this data source
     data_columns = { # All data columns to be imported/calculated and stored
         'timestamp': 'Timestamp',
         'cascade_temperature': 'Thermocouple (°C)',
