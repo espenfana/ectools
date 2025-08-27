@@ -13,6 +13,8 @@ import pandas as pd
 # Relational imports
 from .classes import EcList, ElectroChemistry
 from .config import get_config
+from .auxiliary_sources import AuxiliaryDataHandler
+import warnings
 # classes is a collection of container objects meant for different methods
 
 class EcImporter:
@@ -28,7 +30,7 @@ class EcImporter:
         load_file(fpath: str, fname: str):
             Load and parse an electrochemistry file.
     """
-    def __init__(self, fname_parser=None, aux_importer=None, log_level="WARNING", **kwargs):
+    def __init__(self, fname_parser=None, aux_data_classes=None, log_level="WARNING", **kwargs):
         '''
         fname_parser: optional function to parse information from the file name and path.
             Expected to return a dictionary, from which the key-value pairs are added to the 
@@ -37,9 +39,10 @@ class EcImporter:
         kwargs: key-val pairs added to this instance.
         '''
         self.fname_parser = fname_parser
-        self.aux_importer = aux_importer
+        #self.aux_importer = aux_importer
+        self.aux_data_classes = aux_data_classes or []
         self._setup_logging(log_level)
-
+ 
         for key, val in kwargs.items():
             setattr(self, key, val)
 
@@ -139,20 +142,65 @@ class EcImporter:
         self.logger.info('Completed processing: %d files total, %d parsed, %d ignored', 
                         len(all_files), len(eclist), ignored)
         
-        if self.aux_importer:
-            try:
-                self.logger.info('Importing auxiliary data...')
-                eclist.aux = self.aux_importer(fpath, aux_folder_id=aux_id)
-            except RuntimeError as e:
-                self.logger.warning('Error importing auxiliary data: %s', e)
-                eclist.aux = None
-            if eclist.aux is not None:
-                try: # Attempt to associate auxiliary data with each file
-                    for f in eclist:
-                        f.aux = self._associate_auxiliary_data(eclist.aux, f)
-                    self.logger.info('Successfully associated auxiliary data with %d files', len(eclist))
-                except (KeyError, ValueError, TypeError, AttributeError) as e:
-                    self.logger.exception('Error associating auxiliary data: %s', e)
+        # New logic for aux importing
+        if self.aux_data_classes:
+            self.logger.info('Importing auxiliary data...')
+            eclist.aux = AuxiliaryDataHandler(main_path=fpath, aux_data_classes=self.aux_data_classes)
+            eclist.aux.import_auxiliary_data()
+            
+            # Count successful vs failed sources
+            total_requested = len(self.aux_data_classes)
+            successful_sources = len(eclist.aux.sources)
+            failed_sources = total_requested - successful_sources
+            
+            if successful_sources > 0:
+                # Add interpolated and calculated data axes
+                interpolated_count = 0
+                for f in eclist:
+                    for source_name in eclist.aux.sources:
+                        source = getattr(eclist.aux, source_name, None)  # More explicit None default
+                        if source is not None and hasattr(source, 'continuous_data') and source.continuous_data:
+                            try:
+                                new_columns = source.interpolate_data_columns(f.timestamp, f.pot)
+                                if new_columns:  # Only process if we got data back
+                                    for column_name, data_array in new_columns.items():
+                                        display_name = source.main_data_columns[column_name]
+                                        setattr(f, column_name, data_array)
+                                        f.data_columns[column_name] = display_name
+                                    interpolated_count += len(new_columns)
+                                    self.logger.debug('Interpolated %d columns from %s for file %s', 
+                                                    len(new_columns), source_name, f.fname)
+                            except Exception as e:
+                                self.logger.warning('Error interpolating data from %s for file %s: %s', 
+                                                  source_name, f.fname, e)
+                
+                # More accurate reporting
+                if failed_sources > 0:
+                    self.logger.info('Auxiliary data processing completed: %d/%d sources successful, %d interpolated columns total', 
+                                   successful_sources, total_requested, interpolated_count)
+                else:
+                    self.logger.info('Successfully processed auxiliary data: %d sources, %d interpolated columns total', 
+                                   successful_sources, interpolated_count)
+            else:
+                if failed_sources > 0:
+                    self.logger.warning('All %d auxiliary data sources failed to load', failed_sources)
+                else:
+                    self.logger.info('No auxiliary data sources configured')
+
+        # if self.aux_importer:
+        #     try:
+        #         self.logger.info('Importing auxiliary data...')
+        #         eclist.aux = self.aux_importer(fpath, aux_folder_id=aux_id)
+        #     except RuntimeError as e:
+        #         self.logger.warning('Error importing auxiliary data: %s', e)
+        #         eclist.aux = None
+        #     if eclist.aux is not None:
+        #         try: # Attempt to associate auxiliary data with each file
+        #             for f in eclist:
+        #                 f.aux = self._associate_auxiliary_data(eclist.aux, f)
+        #             self.logger.info('Successfully associated auxiliary data with %d files', len(eclist))
+        #         except (KeyError, ValueError, TypeError, AttributeError) as e:
+        #             self.logger.exception('Error associating auxiliary data: %s', e)
         
         # Sort the EcList if sort_by parameter is provided
         if sort_by and len(eclist) > 0:
@@ -404,9 +452,14 @@ class EcImporter:
                     return child
         return ElectroChemistry  # If no identifier is matched, return ElectroChemistry class
 
-    def _associate_auxiliary_data(self, aux, f) -> Dict:
+    def _associate_auxiliary_data(self, aux, f) -> Dict: # DEPRICATED
         '''Associate aux data with a file time span'''
         # Convert start and end timestamps
+        warnings.warn(
+            "The _associate_auxiliary_data method is deprecated and will be removed in a future release.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         tstart = np.datetime64(f.timestamp[0])
         tend = np.datetime64(f.timestamp[-1])
 

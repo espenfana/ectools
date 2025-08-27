@@ -112,3 +112,5 @@ class BokehSettings:
 # Create an instance of BokehSettings to import
 if BOKEH_AVAILABLE:
     bokeh_conf = BokehSettings()
+else:
+    bokeh_conf = None
