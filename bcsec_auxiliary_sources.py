@@ -540,83 +540,56 @@ class JsonSource(AuxiliaryDataSource):
 
 
 # =============================================================================
-# Convenience Functions for Standard Auxiliary Source Collections
+# Standard Auxiliary Source Collection
 # =============================================================================
 
-def get_standard_sources():
-    '''Get the standard set of BCSEC auxiliary data sources.
+# Standard set of BCSEC auxiliary data sources for typical experiments
+STANDARD_SOURCES = [FurnaceLogger, PicoLogger, JsonSource]
+
+
+# =============================================================================
+# BCSEC Helper Functions (to be moved to bcsec.helper_functions)
+# =============================================================================
+
+def mc_filename_parser(_, fname: str) -> dict:
+    """Parse the filename and return attribute dictionary. Expects a format like:
+    '240926_15E_MCL19_cswWE1_SCAN-HOLD_LSV_STRIP_CO2_750C.DTA'
+        Extracts:
+            id_number: int
+            id_letter: (optional) str
+            id: str
+            id_full: str
+            we_number: int
+            temperature: int
+            mcl_number: int
+            co2_number: float"""
+    import re
     
-    Returns:
-        List of auxiliary data source classes for typical BCSEC experiments
-        
-    Example:
-        from bcsec.auxiliary_sources import get_standard_sources
-        
-        # Use in EcImporter
-        imp = ec.EcImporter(
-            fname_parser=mc_filename_parser,
-            aux_data_classes=get_standard_sources(),
-            log_level='DEBUG'
-        )
-    '''
-    return [FurnaceLogger, PicoLogger, JsonSource]
+    out = {}
+    value_id = re.search(r'\d{6}_([0-9]+)([A-Za-z]*?)_', fname)
+    value_id_full = re.search(r'(\d{6}_[0-9]+[A-Za-z]*?)_', fname)
+    value_we_number = re.search(r'WE(\d+)', fname)
+    value_temperature = re.search(r'_(\d+)C\.DTA', fname)
+    mcl_number = re.search(r'_MCL(\d+)', fname)
+    co2_number = re.search(r'_(\d+)CO2', fname)
 
+    if value_id:
+        out['id_number'] = int(value_id.group(1))
+        out['id_letter'] = str(value_id.group(2)).lower() if value_id.group(2) else ''
+        out['id'] = str(out['id_number']) + out['id_letter']
+    out['id_full'] = str(value_id_full.group(1)) if value_id_full else None
+    out['we_number'] = int(value_we_number.group(1)) if value_we_number else None
+    out['temperature'] = int(value_temperature.group(1)) if value_temperature else None
+    out['mcl_number'] = int(mcl_number.group(1)) if mcl_number else None
 
-def get_temperature_sources():
-    '''Get auxiliary sources that provide temperature data.
-    
-    Returns:
-        List of auxiliary data source classes that provide temperature measurements
-    '''
-    return [FurnaceLogger]
+    if co2_number:
+        # because 03 is 0.3 and 1 is 1.0
+        co2_str = co2_number.group(1)
+        if co2_str.startswith('0') and len(co2_str) > 1:
+            out['co2_number'] = float(f"0.{co2_str[1:]}")
+        else:
+            out['co2_number'] = float(co2_str)
+    else:
+        out['co2_number'] = None
 
-
-def get_electrochemical_sources():
-    '''Get auxiliary sources that provide electrochemical data.
-    
-    Returns:
-        List of auxiliary data source classes that provide potentials and currents
-    '''
-    return [PicoLogger]
-
-
-def get_metadata_sources():
-    '''Get auxiliary sources that provide metadata and sample information.
-    
-    Returns:
-        List of auxiliary data source classes that provide metadata
-    '''
-    return [JsonSource]
-
-
-def get_all_sources():
-    '''Get all available auxiliary data sources.
-    
-    Returns:
-        Dictionary mapping source categories to lists of source classes
-        
-    Example:
-        from bcsec.auxiliary_sources import get_all_sources
-        
-        sources = get_all_sources()
-        
-        # Use specific categories
-        imp = ec.EcImporter(
-            aux_data_classes=sources['electrochemical'] + sources['temperature']
-        )
-        
-        # Or use all sources
-        imp = ec.EcImporter(aux_data_classes=sources['all'])
-    '''
-    return {
-        'standard': get_standard_sources(),
-        'temperature': get_temperature_sources(),
-        'electrochemical': get_electrochemical_sources(),
-        'metadata': get_metadata_sources(),
-        'all': [FurnaceLogger, PicoLogger, JsonSource]
-    }
-
-
-# Make the most common collections easily accessible
-STANDARD_SOURCES = get_standard_sources()
-ALL_SOURCES = [FurnaceLogger, PicoLogger, JsonSource]
+    return out

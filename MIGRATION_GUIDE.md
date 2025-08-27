@@ -29,12 +29,11 @@ The `ectools` package has been refactored to contain only the generalized framew
 import ectools as ec
 
 # Option 1: Import individual specialized classes
-from bcsec.auxiliary_sources import FurnaceLogger, PicoLogger, JsonSource
-from bcsec.helper_functions import mc_filename_parser
+from bcsec.auxiliary_sources import FurnaceLogger, PicoLogger, JsonSource, mc_filename_parser
 from bcsec.ec_classes.electrolysis import PulsedElectrolysis, Electrolysis
 
-# Option 2: Use convenience functions for source collections
-from bcsec.auxiliary_sources import get_standard_sources, get_all_sources
+# Option 2: Use STANDARD_SOURCES for typical BCSEC setup
+from bcsec.auxiliary_sources import STANDARD_SOURCES, mc_filename_parser
 
 # Usage with individual imports (same as before)
 ec.set_config('cycle_convention', 'init')
@@ -44,32 +43,32 @@ imp = ec.EcImporter(
     log_level='DEBUG'
 )
 
-# Usage with convenience functions (simplified)
+# Usage with STANDARD_SOURCES (simplified)
 imp = ec.EcImporter(
     fname_parser=mc_filename_parser,
-    aux_data_classes=get_standard_sources(),  # Gets [FurnaceLogger, PicoLogger, JsonSource]
-    log_level='DEBUG'
-)
-
-# Or use specific source categories
-sources = get_all_sources()
-imp = ec.EcImporter(
-    fname_parser=mc_filename_parser,
-    aux_data_classes=sources['temperature'] + sources['electrochemical'],  # Only temp + electrochemical
+    aux_data_classes=STANDARD_SOURCES,  # Gets [FurnaceLogger, PicoLogger, JsonSource]
     log_level='DEBUG'
 )
 
 fl = imp.load_folder(CWD, sort_by='starttime')
+
+# NEW: Visualization using auxiliary framework
+fl.aux.visualize()                 # Visualize all auxiliary sources
+fl.aux.furnacelogger.visualize()   # Visualize only furnace data
+fl.aux.picologger.visualize()      # Visualize only PicoLogger data
+fl.aux.json_source.visualize()     # Display JSON metadata
 ```
 
-### Available Convenience Functions:
+### Migration from Old Visualization
 
-- **`get_standard_sources()`**: Returns `[FurnaceLogger, PicoLogger, JsonSource]` - the typical BCSEC setup
-- **`get_temperature_sources()`**: Returns `[FurnaceLogger]` - only temperature monitoring
-- **`get_electrochemical_sources()`**: Returns `[PicoLogger]` - only electrochemical monitoring  
-- **`get_metadata_sources()`**: Returns `[JsonSource]` - only metadata and sample info
-- **`get_all_sources()`**: Returns a dictionary with all categories for flexible selection
-- **`STANDARD_SOURCES`**: Pre-defined constant for the standard source list
+```python
+# OLD approach (deprecated)
+from ectools.helper_functions import display_auxiliary_data
+display_auxiliary_data(fl, furnace=True, pico=True, oxide=True)
+
+# NEW approach (recommended)
+fl.aux.visualize()  # Shows all auxiliary data with better plots and interactivity
+```
 
 ### In your bcsec repository files:
 
