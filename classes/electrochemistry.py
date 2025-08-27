@@ -422,21 +422,21 @@ class ElectroChemistry():
                 self[y][mask],
                 **kwargs)
         if add_aux_cell:
-            if np.any(np.isfinite(self.aux['pico']['pot'])):
+            if hasattr(self, 'cell_pot') and np.any(np.isfinite(self.cell_pot)):
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
-                    self.aux['pico'][x],
-                    self.aux['pico']['pot'],
+                    self[x][mask],  # Use the same x-axis data (already masked)
+                    self.cell_pot[mask],  # Auxiliary data is now interpolated to main timeline
                     label='Cell potential',
                     color=last_color, alpha=0.5)
             else:
                 warnings.warn('No auxiliary cell potential data found')
         if add_aux_counter:
-            if np.any(np.isfinite(self.aux['pico']['pot'])):
+            if hasattr(self, 'counter_pot') and np.any(np.isfinite(self.counter_pot)):
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
-                    self.aux['pico'][x],
-                    self.aux['pico']['counter_pot'],
+                    self[x][mask],  # Use the same x-axis data (already masked)
+                    self.counter_pot[mask],  # Auxiliary data is now interpolated to main timeline
                     label='Counter potential',
                     color=last_color, alpha=0.5)
             else:
