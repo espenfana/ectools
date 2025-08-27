@@ -261,7 +261,7 @@ class EcList(List[T], Generic[T]):
                           with cycle numbers extracted from filenames and cycle order validated
             
         Returns:
-            tuple: (filename, data_dict, aux_dict, meta_dict)
+            tuple: (filename, data_dict, meta_dict)
                 - filename: str or None - shared filename prefix from delimited parts (≥5 chars) or None if too short
                 - data_dict: dict with collated data columns including:
                   * time: unified timeline from timestamps (first timestamp = 0)
@@ -272,7 +272,6 @@ class EcList(List[T], Generic[T]):
                   * source_tag: technique tag from source file
                   * timestamp: original timestamp data
                   * [original data columns]: curr, pot, etc. with missing values filled
-                - aux_dict: dict with merged auxiliary data  
                 - meta_dict: dict with metadata from each source file
         """
         if not self:
@@ -287,7 +286,6 @@ class EcList(List[T], Generic[T]):
         
         # Initialize output dictionaries
         data_dict = {}
-        aux_dict = {'pico': {}, 'furnace': {}}
         meta_dict = {}
         
         # Initialize data collection lists
@@ -394,25 +392,25 @@ class EcList(List[T], Generic[T]):
                     
             data_dict[col] = np.array(collated_data)
             
-        # Merge auxiliary data
-        for f in files:
-            if hasattr(f, 'aux') and f.aux:
-                for aux_type, aux_data in f.aux.items():
-                    if aux_type not in aux_dict:
-                        aux_dict[aux_type] = {}
+        # # Merge auxiliary data
+        # for f in files:
+        #     if hasattr(f, 'aux') and f.aux:
+        #         for aux_type, aux_data in f.aux.items():
+        #             if aux_type not in aux_dict:
+        #                 aux_dict[aux_type] = {}
                         
-                    if isinstance(aux_data, dict):
-                        for key, value in aux_data.items():
-                            if key in aux_dict[aux_type]:
-                                # If key exists, try to concatenate arrays
-                                if isinstance(value, np.ndarray) and isinstance(aux_dict[aux_type][key], np.ndarray):
-                                    aux_dict[aux_type][key] = np.concatenate([aux_dict[aux_type][key], value])
-                                # For non-arrays, keep the first occurrence
-                            else:
-                                aux_dict[aux_type][key] = value
-                    else:
-                        # Handle non-dict auxiliary data
-                        aux_dict[aux_type] = aux_data
+        #             if isinstance(aux_data, dict):
+        #                 for key, value in aux_data.items():
+        #                     if key in aux_dict[aux_type]:
+        #                         # If key exists, try to concatenate arrays
+        #                         if isinstance(value, np.ndarray) and isinstance(aux_dict[aux_type][key], np.ndarray):
+        #                             aux_dict[aux_type][key] = np.concatenate([aux_dict[aux_type][key], value])
+        #                         # For non-arrays, keep the first occurrence
+        #                     else:
+        #                         aux_dict[aux_type][key] = value
+        #             else:
+        #                 # Handle non-dict auxiliary data
+        #                 aux_dict[aux_type] = aux_data
         
         # Detect common attributes across files (not data columns)
         required_attributes = ('area', 'we_number')
@@ -499,7 +497,7 @@ class EcList(List[T], Generic[T]):
         else:
             # Single file case
             filename = files[0].fname if files else None
-        return filename, attributes, data_dict, aux_dict, meta_dict
+        return filename, attributes, data_dict, meta_dict
 
     def collate_convert(self, target_class: type[T], cyclic: bool = False, **kwargs) -> 'EcList':
         """
@@ -524,7 +522,7 @@ class EcList(List[T], Generic[T]):
         """
 
         # Collate data from selected files
-        filename, attributes, data_dict, aux_dict, meta_dict = self.collate_data(cyclic=cyclic)
+        filename, attributes, data_dict, meta_dict = self.collate_data(cyclic=cyclic)
 
         # Create an instance of the target class with the collated data
         converted_obj = target_class(
@@ -532,11 +530,28 @@ class EcList(List[T], Generic[T]):
             fpath=self.fpath,
             meta=meta_dict
         )
-        # Set the collated data and auxiliary data
+        
+        # Set the collated data columns
         for key, value in data_dict.items():
             converted_obj[key] = value
-        for key, value in aux_dict.items():
-            converted_obj.aux[key] = value
+            
+        # Build comprehensive data_columns dictionary from all source files
+        # Start with target class's default data_columns
+        comprehensive_data_columns = getattr(converted_obj, 'data_columns', {}).copy()
+        
+        # Add data_columns from all source files to include auxiliary columns
+        for f in self:
+            if hasattr(f, 'data_columns'):
+                comprehensive_data_columns.update(f.data_columns)
+        
+        # Only keep columns that are actually present in the collated data
+        final_data_columns = {col: display_name 
+                             for col, display_name in comprehensive_data_columns.items() 
+                             if col in data_dict}
+        
+        # Set the updated data_columns dictionary
+        converted_obj.data_columns = final_data_columns
+        
         # Set the attributes
         for key, value in attributes.items():
             setattr(converted_obj, key, value)

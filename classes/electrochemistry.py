@@ -52,7 +52,6 @@ class ElectroChemistry():
     control: Optional[str]
     data_columns: Dict[str, str]
     units: Dict[str, str]
-    aux: Dict[str, Dict[str, Any]]
     area: float
     starttime: datetime
     starttime_toffset: float
@@ -90,12 +89,54 @@ class ElectroChemistry():
         # These should remain empty in this class
         #self.cycle = np.empty(0)
         #self.oxred = np.empty(0)
-        self.aux = {'pico': {}, 'furnace': {}} # Auxiliary data
         # Note: area, starttime, starttime_toffset are set during file parsing
         # No need to initialize them here since they're assigned complete values
         self.label = None # Used for automatic labeling of plots
         self._potential_offset = 0.0  # Initialize potential offset to zero
         self.we_number = None # Working electrode number
+
+    @property
+    def aux(self):
+        """
+        Deprecated: The 'aux' attribute is no longer used in the new auxiliary framework.
+        
+        Auxiliary data is now directly available as data columns on the main object.
+        For example:
+        - Instead of: obj.aux['pico']['cell_pot']
+        - Use: obj.cell_pot
+        
+        Available auxiliary columns can be found in obj.data_columns dictionary.
+        """
+        import warnings
+        available_aux_columns = [col for col in self.data_columns.keys() 
+                               if col not in ['time', 'curr', 'curr_dens', 'pot', 'timestamp']]
+        
+        if available_aux_columns:
+            aux_list = ', '.join(available_aux_columns)
+            message = (
+                f"The 'aux' attribute is deprecated. Auxiliary data is now available as direct attributes.\n"
+                f"Available auxiliary columns: {aux_list}\n"
+                f"Example: instead of obj.aux['pico']['cell_pot'], use obj.cell_pot"
+            )
+        else:
+            message = (
+                "The 'aux' attribute is deprecated. No auxiliary data columns found on this object.\n"
+                "Auxiliary data is now integrated as direct attributes when available."
+            )
+            
+        warnings.warn(message, DeprecationWarning, stacklevel=2)
+        return None
+    
+    @aux.setter
+    def aux(self, value):
+        """Prevent setting the deprecated aux attribute."""
+        import warnings
+        warnings.warn(
+            "Setting 'aux' attribute is deprecated. Auxiliary data is now managed automatically "
+            "through the new auxiliary framework and stored as direct attributes.",
+            DeprecationWarning, 
+            stacklevel=2
+        )
 
     def __getitem__(self, key):
         '''Makes object subscriptable like a dict'''
@@ -266,30 +307,8 @@ class ElectroChemistry():
                 # Slice data arrays
                 setattr(sliced_instance, attr_name, attr_value[mask])
             else:
-                # Copy other attributes directly
-                if attr_name == 'aux':
-                    continue
                 setattr(sliced_instance, attr_name, attr_value)
-
-        # Configure auxiliary channels
-        # Warning: auxiliary data handling not generalized
-        if self.aux is not None:
-            sliced_instance.aux = {}
-            for attr_name, attr_value in self.aux.items():
-                if attr_name == 'pico':
-                    # Handle pico data, checking if value shape matches mask
-                    sliced_instance.aux['pico'] = {}
-                    for key, value in attr_value.items():
-                        if isinstance(value, np.ndarray) and len(value) == len(mask):
-                            sliced_instance.aux['pico'][key] = value[mask]
-                        else:
-                            sliced_instance.aux['pico'][key] = value
-                elif attr_name == 'furnace': # Furnace data not interpolated to common time axis
-                    sliced_instance.aux['furnace'] = {key: value for key, value in attr_value.items()}
-                else:
-                    sliced_instance.aux[attr_name] = attr_value
-        else:
-            sliced_instance.aux = None
+        
         return sliced_instance
 
     # Output methods

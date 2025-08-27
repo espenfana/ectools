@@ -192,6 +192,18 @@ class AuxiliaryDataSource(ABC):
         '''
         self.auxiliary_folders = auxiliary_folders
 
+    def __getitem__(self, key):
+        '''Makes object subscriptable like a dict'''
+        return self.__getattribute__(key)
+        
+    def __setitem__(self, key: str, value: Any) -> None:
+        '''Makes object attributes assignable like a dict'''
+        self.__setattr__(key, value)
+        
+    def __contains__(self, key):
+        '''Check if attribute exists (for use with 'in' operator)'''
+        return hasattr(self, key)
+
     # --- Data import methods ---
     @abstractmethod
     def load_data(self) -> Optional['AuxiliaryDataSource']:
@@ -596,7 +608,7 @@ class FurnaceLogger(AuxiliaryDataSource):
     cascade_setpoint: np.ndarray  # Cascade thermocouple setpoint
     main_setpoint: np.ndarray  # Main heating element setpoint
 
-    name = "furnacelogger"  # Unique identifier for this data source
+    name = "furnace"  # Unique identifier for this data source
     data_columns = { # All data columns to be imported/calculated and stored
         'timestamp': 'Timestamp',
         'cascade_temperature': 'Thermocouple (°C)',
