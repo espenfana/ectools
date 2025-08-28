@@ -3,6 +3,7 @@
 import logging
 import os
 import re
+from datetime import datetime
 from typing import Dict
 
 # Third-party imports
@@ -77,7 +78,8 @@ class EcImporter:
         # Add handlers to the logger
         self.logger.addHandler(console_handler)
 
-    def load_folder(self, fpath: str, data_folder_id=None, aux_folder_id=None, sort_by=None, **kwargs) -> EcList:
+    def load_folder(self, fpath: str, data_folder_id=None, aux_folder_id=None, sort_by=None, 
+                    collation_mapping=None, **kwargs) -> EcList:
         '''
         Parse and load the contents of a folder and its subfolders.
         Ignores folders starting with '_' and only includes subfolders containing data_folder_id.
@@ -88,6 +90,15 @@ class EcImporter:
             aux_folder_id: Override for aux folder identifier (default from config)
             sort_by: Attribute name to sort the EcList by (e.g., 'starttime', 'fname'). 
                     Default None (no sorting, files in order read)
+            collation_mapping: Dict mapping target classes to configurations for collating files.
+                    Supports two formats:
+                    1. Simple format: {target_class: {'id_numbers': [list], 'cyclic': bool, 'kwargs': dict}}
+                    2. Enhanced format: {target_class: {'id_numbers': {id: kwargs_dict}, 'cyclic': bool}}
+                    Examples:
+                    Simple: {PulsedElectrolysis: {'id_numbers': [4, 9], 'cyclic': False, 
+                             'kwargs': {'default_label': 'experiment'}}}
+                    Enhanced: {PulsedElectrolysis: {'id_numbers': {4: {'label': 'E1 experiment'}, 
+                               9: {'label': 'E3 experiment'}}, 'cyclic': False}}
             **kwargs: Additional arguments passed to EcList
         '''
         # Get folder identifiers from config or use overrides
@@ -141,6 +152,11 @@ class EcImporter:
         
         self.logger.info('Completed processing: %d files total, %d parsed, %d ignored', 
                         len(all_files), len(eclist), ignored)
+        
+        # Process collation mapping before auxiliary data handling
+        if collation_mapping:
+            self.logger.info('Processing collation mapping for %d target classes...', len(collation_mapping))
+            eclist = self._process_collation_mapping(eclist, collation_mapping)
         
         # New logic for aux importing
         if self.aux_data_classes:
@@ -203,6 +219,8 @@ class EcImporter:
         #             self.logger.exception('Error associating auxiliary data: %s', e)
         
         # Sort the EcList if sort_by parameter is provided
+        # Note: This happens after collation, so collated objects will be sorted among themselves
+        # and with any remaining individual files
         if sort_by and len(eclist) > 0:
             try:
                 # Check if the first item has the requested attribute
@@ -529,3 +547,104 @@ class EcImporter:
             self.logger.info('No furnace data available in auxiliary data.')
 
         return faux
+
+    def _process_collation_mapping(self, eclist: EcList, collation_mapping: Dict) -> EcList:
+        """
+        Process collation mapping to combine files into target classes before auxiliary data handling.
+        
+        Args:
+            eclist: The EcList containing all loaded files
+            collation_mapping: Dict mapping target classes to configurations for collating files.
+                    Supports two formats:
+                    1. Simple format: {target_class: {'id_numbers': [list], 'cyclic': bool, 'kwargs': dict}}
+                    2. Enhanced format: {target_class: {'id_numbers': {id: kwargs_dict}, 'cyclic': bool}}
+                    
+        Returns:
+            EcList: Updated EcList with collated files replacing original files
+        """
+        processed_eclist = eclist
+        
+        for target_class, config in collation_mapping.items():
+            try:
+                # Extract configuration
+                id_numbers_config = config.get('id_numbers', [])
+                cyclic = config.get('cyclic', False)
+                default_kwargs = config.get('kwargs', {})
+                
+                if not id_numbers_config:
+                    self.logger.warning('No id_numbers specified for target class %s, skipping', 
+                                      target_class.__name__)
+                    continue
+                
+                # Determine if we're using simple format (list) or enhanced format (dict)
+                if isinstance(id_numbers_config, list):
+                    # Simple format: use default kwargs for all id_numbers
+                    id_number_mapping = {id_num: default_kwargs for id_num in id_numbers_config}
+                elif isinstance(id_numbers_config, dict):
+                    # Enhanced format: per-id_number kwargs
+                    id_number_mapping = id_numbers_config
+                else:
+                    self.logger.error('Invalid id_numbers format for target class %s, must be list or dict', 
+                                    target_class.__name__)
+                    continue
+                
+                # Filter files for each id_number and collate them
+                for id_number, specific_kwargs in id_number_mapping.items():
+                    try:
+                        # Filter files by id_number
+                        filtered_files = processed_eclist.filter(id_number=id_number)
+                        
+                        if len(filtered_files) == 0:
+                            self.logger.warning('No files found for id_number %s, skipping', id_number)
+                            continue
+                        elif len(filtered_files) == 1:
+                            self.logger.info('Only one file found for id_number %s, skipping collation', id_number)
+                            continue
+                        
+                        # Sort filtered files by starttime to ensure correct chronological order
+                        try:
+                            def get_sort_time(f):
+                                """Get a sortable time value from file, handling different timestamp formats"""
+                                if hasattr(f, 'starttime') and f.starttime is not None:
+                                    return f.starttime
+                                elif hasattr(f, 'timestamp') and f.timestamp is not None and len(f.timestamp) > 0:
+                                    return f.timestamp[0]
+                                else:
+                                    return datetime.min  # Very early date as fallback
+                            
+                            filtered_files.sort(key=get_sort_time)
+                            self.logger.debug('Sorted %d files for id_number %s by starttime before collation', 
+                                            len(filtered_files), id_number)
+                        except Exception as sort_error:
+                            self.logger.warning('Could not sort files for id_number %s by starttime: %s. '
+                                              'Proceeding with original order.', id_number, sort_error)
+                        
+                        self.logger.info('Collating %d files for id_number %s into %s', 
+                                       len(filtered_files), id_number, target_class.__name__)
+                        
+                        # Merge default kwargs with specific kwargs (specific takes precedence)
+                        final_kwargs = {**default_kwargs, **specific_kwargs}
+                        
+                        # Collate and convert the filtered files
+                        converted_obj = filtered_files.collate_convert(
+                            target_class=target_class, 
+                            cyclic=cyclic, 
+                            **final_kwargs
+                        )
+                        
+                        # Replace the original files with the converted object
+                        processed_eclist = processed_eclist.replace(converted_obj)
+                        
+                        self.logger.info('Successfully collated id_number %s files into %s', 
+                                       id_number, target_class.__name__)
+                        
+                    except Exception as e:
+                        self.logger.error('Error collating files for id_number %s: %s', id_number, e)
+                        continue
+                        
+            except Exception as e:
+                self.logger.error('Error processing collation for target class %s: %s', 
+                                target_class.__name__, e)
+                continue
+        
+        return processed_eclist

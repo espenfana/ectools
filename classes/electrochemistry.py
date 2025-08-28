@@ -2,13 +2,17 @@
 
 import re
 from datetime import datetime, timedelta
-from typing import Union, Tuple, Optional, Dict, List, Any
+from typing import Union, Tuple, Optional, Dict, List, Any, TYPE_CHECKING, cast
 import warnings
 
 import dateutil.parser as date_parser
 from matplotlib import pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    # Only for type checking, not runtime
+    pass
 
 # Conditional import of Bokeh
 try:
@@ -43,6 +47,13 @@ class ElectroChemistry():
     curr_dens: np.ndarray
     pot: np.ndarray
     timestamp: np.ndarray
+    
+    # Type hints for auxiliary data columns (dynamically added by auxiliary sources)
+    # These are Optional because they're only present when auxiliary data sources are available
+    cell_pot: Optional[np.ndarray]  # Added by PicoLogger auxiliary source
+    counter_pot: Optional[np.ndarray]  # Calculated from cell_pot and pot
+    cascade_temperature: Optional[np.ndarray]  # Added by FurnaceLogger auxiliary source
+    cascade_rate: Optional[np.ndarray]  # Added by FurnaceLogger auxiliary source
     
     # Type hints for metadata and other attributes
     fname: str
@@ -432,7 +443,7 @@ class ElectroChemistry():
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
                     self[x][mask],  # Use the same x-axis data (already masked)
-                    self.cell_pot[mask],  # Auxiliary data is now interpolated to main timeline
+                    self.cell_pot[mask],  # pylint: disable=unsubscriptable-object
                     label='Cell potential',
                     color=last_color, alpha=0.5)
             else:
@@ -442,7 +453,7 @@ class ElectroChemistry():
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
                     self[x][mask],  # Use the same x-axis data (already masked)
-                    self.counter_pot[mask],  # Auxiliary data is now interpolated to main timeline
+                    self.counter_pot[mask],  # pylint: disable=unsubscriptable-object
                     label='Counter potential',
                     color=last_color, alpha=0.5)
             else:
