@@ -92,10 +92,10 @@ class PicoLogger(AuxiliaryDataSource):
                         
                     # Convert timestamp column
                     if 'Timestamp' in pico_data.columns:
-                        pico_data['timestamp'] = pd.to_datetime(pico_data['Timestamp'], errors='coerce')
+                        pico_data['timestamp'] = pd.to_datetime(pico_data['Timestamp'], errors='coerce', unit='s')
                     elif len(pico_data.columns) >= 2:
                         pico_data.columns = ['timestamp', 'cell_pot']
-                        pico_data['timestamp'] = pd.to_datetime(pico_data['timestamp'], errors='coerce')
+                        pico_data['timestamp'] = pd.to_datetime(pico_data['timestamp'], errors='coerce', unit='s')
                     
                     data_temp.append(pico_data)
                     logger.debug(f"PicoLogger: Loaded {len(pico_data)} rows from {csv_file}")
@@ -185,6 +185,9 @@ class PicoLogger(AuxiliaryDataSource):
         if not HAS_BOKEH:
             logger.error("Bokeh not available for interactive plotting")
             return self.plot_matplotlib(**kwargs)
+        
+        # Enable inline notebook output
+        output_notebook()
         
         try:
             p = figure(
@@ -407,6 +410,9 @@ class FurnaceLogger(AuxiliaryDataSource):
         if not HAS_BOKEH:
             logger.error("Bokeh not available for interactive plotting")
             return self.plot_matplotlib(**kwargs)
+        
+        # Enable inline notebook output
+        output_notebook()
         
         try:
             p = figure(
