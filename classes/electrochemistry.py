@@ -313,31 +313,27 @@ class ElectroChemistry():
 
     # Output methods
     # ------------------------
-    def to_csv(self, fname: str = None, add_cell_potential: bool = False, add_counter_potential: bool = False) -> None:
+    def to_csv(self, fname: str = None) -> None:
         """
-        Save the data to a CSV file.
-        If fname is not provided, it will use the instance's fname attribute.
+        Save all data columns to a CSV file.
+        
+        This method automatically includes all available data columns, including
+        any auxiliary data that has been integrated through the auxiliary framework.
+        
+        Args:
+            fname: Output filename. If not provided, uses the instance's fname attribute.
         """
         if fname is None:
             fname = self.fname
         if not fname.endswith('.csv'):
             fname += '.csv'
         
-        # Create a DataFrame from the data dictionary
+        # Create a DataFrame from all available data columns
         import pandas as pd
         df = pd.DataFrame(self.get_data_dict())
+        
         # Remap column headers to display names
         df.rename(columns=self.data_columns, inplace=True)
-        if add_cell_potential and 'aux' in self and 'pico' in self.aux and len(self.aux['pico']['timestamp']) == len(self.timestamp):
-            if 'pot' in self.aux['pico']:
-                df['Cell Potential (V)'] = self.aux['pico']['pot']
-            else:
-                warnings.warn('No auxiliary cell potential data found')
-        if add_counter_potential and 'aux' in self and 'pico' in self.aux and len(self.aux['pico']['timestamp']) == len(self.timestamp):
-            if 'counter_pot' in self.aux['pico']:
-                df['Counter Potential (V)'] = self.aux['pico']['counter_pot']
-            else:
-                warnings.warn('No auxiliary counter potential data found')
         
         # Save to CSV
         df.to_csv(fname, index=False)
