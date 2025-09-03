@@ -507,6 +507,94 @@ class ElectroChemistry():
         ax_right.spines['right'].set_color(color_right)
         return fig, (ax_left, ax_right)
 
+    def plot_overview(self, figsize=(15, 10), max_cols=3):
+        """
+        Create a grid plot overview of all available data columns.
+        
+        Args:
+            figsize: Figure size as (width, height) tuple
+            max_cols: Maximum number of columns in the grid
+        
+        Returns:
+            tuple: (figure, axes) from matplotlib subplots
+        """
+        # Get all available data columns (exclude timestamp for plotting)
+        plot_columns = [col for col in self.data_columns.keys() 
+                       if col != 'timestamp' and hasattr(self, col) and len(getattr(self, col)) > 0]
+        
+        if not plot_columns:
+            print("No data columns available for plotting")
+            return None, None
+            
+        # Calculate grid dimensions
+        n_plots = len(plot_columns)
+        n_cols = min(max_cols, n_plots)
+        n_rows = (n_plots + n_cols - 1) // n_cols  # Ceiling division
+        
+        # Create subplots
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize, constrained_layout=True)
+        
+        # Handle single subplot case
+        if n_plots == 1:
+            axes = [axes]
+        elif n_rows == 1:
+            axes = axes.reshape(1, -1)
+        
+        # Use timestamp as x-axis data
+        x_data = self.timestamp if hasattr(self, 'timestamp') and len(self.timestamp) > 0 else np.arange(len(getattr(self, plot_columns[0])))
+        
+        plot_count = 0
+        for i, col in enumerate(plot_columns):
+            try:
+                # Get the data and check if it's numeric
+                y_data = getattr(self, col)
+                
+                # Skip non-numeric columns
+                if not np.issubdtype(y_data.dtype, np.number):
+                    print(f"Skipping non-numeric column '{col}' (dtype: {y_data.dtype})")
+                    continue
+                
+                row, col_idx = divmod(plot_count, n_cols)
+                ax = axes[row, col_idx] if n_rows > 1 else axes[col_idx]
+                
+                # Plot the data
+                ax.plot(x_data, y_data, 'b-', linewidth=1, alpha=0.8)
+                
+                # Set title showing both column name and display name
+                display_name = self.data_columns.get(col, col)
+                title = f"{col} ({display_name})" if col != display_name else col
+                ax.set_title(title, fontsize=10)
+                ax.set_ylabel(display_name)
+                ax.grid(True, alpha=0.3)
+                
+                # Remove x-axis labels as requested
+                ax.set_xticklabels([])
+                
+                # Format y-axis for better readability
+                if len(y_data) > 0 and np.any(np.isfinite(y_data)):
+                    y_range = np.ptp(y_data[np.isfinite(y_data)])
+                    if y_range < 1e-6:
+                        ax.ticklabel_format(style='scientific', axis='y', scilimits=(-3, 3))
+                
+                plot_count += 1
+                
+            except Exception as e:
+                print(f"Error plotting column '{col}': {e}")
+                print(f"  Column dtype: {getattr(self, col).dtype if hasattr(self, col) else 'N/A'}")
+                print(f"  Column shape: {getattr(self, col).shape if hasattr(self, col) else 'N/A'}")
+                continue
+        
+        # Hide unused subplots
+        for i in range(plot_count, n_rows * n_cols):
+            row, col_idx = divmod(i, n_cols)
+            ax = axes[row, col_idx] if n_rows > 1 else axes[col_idx]
+            ax.set_visible(False)
+        
+        # Add overall title
+        fig.suptitle(f"Data Overview: {self.fname}", fontsize=14, fontweight='bold')
+        plt.show()
+        return fig, axes
+
     def set_area(self, new_area: float):
         '''Set new value for area and recalculate current density
             new_area: float [cm²]'''

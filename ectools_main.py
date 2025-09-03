@@ -489,8 +489,26 @@ class EcImporter:
             pico_data = aux['pico']
             if 'timestamp' in pico_data and pico_data['timestamp'] is not None:
                 try:
-                    ts_file = pd.to_datetime(f.timestamp, utc=True).tz_convert(None)
-                    pico_ts = pd.to_datetime(pico_data['timestamp'], utc=True).tz_convert(None)
+                    # Handle timezone-aware timestamps properly
+                    if hasattr(f.timestamp, 'dt') and f.timestamp.dt.tz is not None:
+                        ts_file = pd.to_datetime(f.timestamp)
+                    else:
+                        ts_file = pd.to_datetime(f.timestamp, utc=True)
+                    
+                    if hasattr(pico_data['timestamp'], 'dt') and pico_data['timestamp'].dt.tz is not None:
+                        pico_ts = pd.to_datetime(pico_data['timestamp'])
+                    else:
+                        pico_ts = pd.to_datetime(pico_data['timestamp'], utc=True)
+                    
+                    # Ensure both are in the same timezone for comparison
+                    if ts_file.dt.tz != pico_ts.dt.tz:
+                        if ts_file.dt.tz is not None and pico_ts.dt.tz is not None:
+                            pico_ts = pico_ts.dt.tz_convert(ts_file.dt.tz)
+                        elif ts_file.dt.tz is None and pico_ts.dt.tz is not None:
+                            ts_file = ts_file.dt.tz_localize('UTC')
+                            pico_ts = pico_ts.dt.tz_convert('UTC')
+                        elif ts_file.dt.tz is not None and pico_ts.dt.tz is None:
+                            pico_ts = pico_ts.dt.tz_localize('UTC').dt.tz_convert(ts_file.dt.tz)
                     # Determine file indices that fall within the pico timestamp range.
                     valid_mask = (ts_file >= pico_ts.min()) & (ts_file <= pico_ts.max())
                     ts_overlap = ts_file[valid_mask]

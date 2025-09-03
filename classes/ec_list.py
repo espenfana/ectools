@@ -360,8 +360,8 @@ class EcList(List[T], Generic[T]):
         data_dict['source_tag'] = np.array(source_tags)
         data_dict['timestamp'] = np.array(all_timestamps)
         if cyclic:
-            # Add cycle numbers to the data dictionary
-            data_dict['cycle'] = np.array(file_cycle_numbers)
+            # Add cycle numbers to the data dictionary (one per data point, not per file)
+            data_dict['cycle'] = np.array(cycle_numbers)
         
         # Get all possible data columns from all files
         all_columns = set()

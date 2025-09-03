@@ -193,14 +193,6 @@ class AuxiliaryDataSource(ABC):
         '''
         self.auxiliary_folders = auxiliary_folders
 
-    def __getitem__(self, key):
-        '''Makes object subscriptable like a dict'''
-        return self.__getattribute__(key)
-        
-    def __setitem__(self, key: str, value: Any) -> None:
-        '''Makes object attributes assignable like a dict'''
-        self.__setattr__(key, value)
-        
     def __contains__(self, key):
         '''Check if attribute exists (for use with 'in' operator)'''
         return hasattr(self, key)
@@ -348,7 +340,9 @@ class AuxiliaryDataSource(ABC):
             Interpolated data array with same length as main_timestamp
         '''
         aux_data = getattr(self, column_name, None)
-        aux_timestamps = getattr(self, 'timestamp', None)
+        aux_timestamps = getattr(self, '_timestamp_int64', None)  # Use internal int64 storage
+        if aux_timestamps is None:
+            aux_timestamps = getattr(self, 'timestamp', None)  # Fallback to property getter
         
         # Case 3: No aux data available
         if aux_data is None or aux_timestamps is None:
@@ -357,11 +351,15 @@ class AuxiliaryDataSource(ABC):
         
         # Convert to numeric timestamps with timezone handling
         try:
-            main_ts = pd.to_datetime(main_timestamp, utc=True).tz_convert(None)
-            aux_ts = pd.to_datetime(aux_timestamps, utc=True).tz_convert(None)
+            # Main timestamps are datetime objects from ElectroChemistry, convert them
+            main_numeric = pd.to_datetime(main_timestamp).astype('int64')
             
-            main_numeric = main_ts.astype('int64')
-            aux_numeric = aux_ts.astype('int64')
+            # Aux timestamps are already int64 nanoseconds from optimized loading
+            if isinstance(aux_timestamps[0] if len(aux_timestamps) > 0 else None, (int, np.integer)):
+                aux_numeric = aux_timestamps  # Already converted
+            else:
+                aux_numeric = pd.to_datetime(aux_timestamps).astype('int64')
+            
         except Exception as e:
             logger.warning(f"Timestamp conversion failed for {column_name}: {e}")
             return np.full(len(main_timestamp), np.nan)
