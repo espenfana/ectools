@@ -104,7 +104,7 @@ class EcList(List[T], Generic[T]):
         except Exception as e:
             raise ValueError(f"Error applying area corrections: {str(e)}") from e    
         
-    def filter(self, fids: Optional[List[str]] = None, sorting: Optional[str] = None, between: bool = False, **kwargs: Any) -> 'EcList':
+    def filter(self, fids: Optional[List[str]] = None, sorting: Optional[str] = None, between: bool = False, **kwargs: Any) -> 'EcList[T]':
         """
         Select files based on a list of file IDs (fids), a range if between_fids=True and fids has 2 items,
         OR matching any attribute key-value pair. Files are selected if they match any of the file IDs or
@@ -163,7 +163,7 @@ class EcList(List[T], Generic[T]):
         # Instead of sorting by filename:
         selected_files = [self[i] for i in sorted(selected_idx)]  # Sort by original index
 
-        eclist_out = EcList(fpath=self.fpath)
+        eclist_out: 'EcList[T]' = EcList(fpath=self.fpath)
         eclist_out.extend(selected_files)
         if sorting:
             eclist_out.sort(key=lambda f: getattr(f, sorting), reverse=False)
@@ -184,19 +184,23 @@ class EcList(List[T], Generic[T]):
         Raises:
             ValueError: If no files match the criteria.
         """
-        selected_files = []
+        selected_files: 'EcList[T]'
         if fid: 
             selected_files = self.filter(fids=[fid])
         elif kwargs:
             selected_files = self
             for key, value in kwargs.items():
                 selected_files = selected_files.filter(**{key: value})
+        else:
+            raise ValueError("Either fid or kwargs must be provided")
 
         if len(selected_files) > 1:        
             warnings.warn(
                 f"Multiple files found matching the provided criteria: {kwargs or fid}. "
                 "Returning the first match."
             )
+        if len(selected_files) == 0:
+            raise ValueError(f"No files found matching the provided criteria: {kwargs or fid}")
         # Return the first selected file
         return selected_files[0]
 
@@ -499,7 +503,7 @@ class EcList(List[T], Generic[T]):
             filename = files[0].fname if files else None
         return filename, attributes, data_dict, meta_dict
 
-    def collate_convert(self, target_class: type[T], cyclic: bool = False, **kwargs) -> 'EcList':
+    def collate_convert(self, target_class: type[T], cyclic: bool = False, **kwargs) -> T:
         """
         Convert file(s) in EcList to a target class and replace items in EcList with converted object. 
         Multiple files will be collated into a single object.
@@ -580,11 +584,11 @@ class EcList(List[T], Generic[T]):
         
         return converted_obj
 
-    def replace(self, target_object, target_eclist=None) -> 'EcList':
+    def replace(self, target_object, target_eclist=None) -> 'EcList[T]':
         """
         Create a new EcList instance to hold converted files, looping through the original list to maintain the original order.
         """
-        eclist_out = EcList(fpath=self.fpath)
+        eclist_out: 'EcList[T]' = EcList(fpath=self.fpath)
         inserted = False
         if target_eclist is None:
             target_eclist = getattr(target_object, 'source_files', None)
