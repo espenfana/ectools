@@ -4,6 +4,7 @@ from matplotlib.axes import Axes
 import numpy as np
 
 from .electrochemistry import ElectroChemistry
+from ..utils import optional_return_figure
 
 class OpenCircuit(ElectroChemistry):
     '''Open Circuit Voltage file container'''
@@ -29,6 +30,7 @@ class OpenCircuit(ElectroChemistry):
     #    '''Parse the metadata blocks into attributes'''
     #    super().parse_meta_mpt() # Preprocess the metadata block
 
+    @optional_return_figure
     def plot(self,
             ax: Optional[Axes] = None,
             x: str = 'time',
@@ -42,9 +44,9 @@ class OpenCircuit(ElectroChemistry):
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
         kws = {'xlabel': f'time ({self.units[x]})',
                 'ylabel': f'E_OC ({self.units[y]})'}
-        ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, 
+        fig, ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, 
                           add_aux_cell=add_aux_cell, add_aux_counter=add_aux_counter,
-                          ax_kws=kws, **kwargs)
+                          ax_kws=kws, return_figure=True, **kwargs)  # Always get the figure back from parent
         if hue:
             ax.legend(title=hue)
-        return ax
+        return fig, ax

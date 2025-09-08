@@ -5,6 +5,7 @@ from matplotlib.axes import Axes
 import numpy as np
 
 from .electrochemistry import ElectroChemistry
+from ..utils import optional_return_figure
 
 class LinearSweepVoltammetry(ElectroChemistry):
     '''Linear sweep voltammetry file container'''
@@ -55,6 +56,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
             self[key] = float(self._meta_dict[label]['value'])
             self.units[key] = re.search(r'\((.*?)\)', self._meta_dict[label]['description']).group(1)
 
+    @optional_return_figure
     def plot(self,
             ax: Optional[Axes] = None,
             x: str = 'pot',
@@ -66,7 +68,7 @@ class LinearSweepVoltammetry(ElectroChemistry):
             ax_kws: Optional[Dict[str, Any]] = None,
             **kwargs: Any) -> Axes:
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        ax = super().plot(
+        fig, ax = super().plot(
             ax=ax,
             x=x,
             y=y,
@@ -75,7 +77,8 @@ class LinearSweepVoltammetry(ElectroChemistry):
             add_aux_cell=add_aux_cell,
             add_aux_counter=add_aux_counter,
             ax_kws=ax_kws,
+            return_figure=True,  # Always get the figure back from parent
             **kwargs)
         if hue:
             ax.legend(title=hue)
-        return ax
+        return fig, ax

@@ -23,6 +23,8 @@ except ImportError:
     pass
 
 from ..config import requires_bokeh, bokeh_conf, LOCAL_TZ
+from ..utils import optional_return_figure, split_by_length
+
 
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
@@ -179,15 +181,15 @@ class ElectroChemistry():
                 colonsep[row.split(':', 1)[0].strip()] = row.split(':', 1)[1].strip()
             elif (len(row)>20) and (row[18:20] == '  '):
                 if re.match(r'vs\.', row):
-                    wsep[-1].append(_split_by_length(row[20:]))
+                    wsep[-1].append(split_by_length(row[20:]))
                 else:
                     m = re.search(r'\((.?\w)\)', row[:20]) # look for units in parenthesis
                     if m:
                         wsep.append([row[:m.start(0)].strip(),
-                                     _split_by_length(row[20:]), m.group(1)])
+                                     split_by_length(row[20:]), m.group(1)])
                     else:
                         wsep.append([row[:20].strip(), 
-                                     _split_by_length(row[20:])])
+                                     split_by_length(row[20:])])
         # If the experiment was modified during run, the last value will be entered
         widthsep = {row[0]: row[1:] for row in wsep}
         self._meta_dict = {**colonsep, **widthsep}
@@ -270,53 +272,93 @@ class ElectroChemistry():
         if 'pot_offset' not in self.data_columns:
             self.data_columns['pot_offset'] = 'Offset Potential (V)'
 
-    def slice(self, **criteria: Union[float, Tuple[float, float]]) -> 'ElectroChemistry':
+    def slice(self, mask=None, **criteria) -> 'ElectroChemistry':
         """
-        Return a sliced version of the instance based on the specified criteria.
+        Return a sliced version of the instance based on the specified criteria or mask.
 
         Args:
-            **criteria: Keyword arguments where keys are data column names and values are
-                        either a single scalar or a tuple specifying (lower, upper) limits.
+            mask : array-like, optional
+                Boolean mask to apply directly. If provided, criteria are ignored.
+            **criteria: Keyword arguments where keys are data column names and values can be:
+                - Single value for equality (e.g., substep=1)
+                - Tuple (lower, upper) for range (e.g., time=(10, 100))
+                - Dict with operator and value (e.g., pot={'>=': 0.5, '<': 1.0})
 
         Returns:
-            ElectroChemistry: A new instance of the class with sliced data.
+            ElectroChemistry: A new instance with extracted data (clean numpy arrays).
 
         Raises:
             ValueError: If an invalid data column is specified or if the value is improperly formatted.
+            
+        Examples:
+            obj.slice(substep=1)  # Equal to 1
+            obj.slice(time=(10, 100))  # Between 10 and 100
+            obj.slice(pot={'>': 0.5})  # Greater than 0.5
+            obj.slice(curr={'>=': -0.1, '<=': 0.1})  # Multiple conditions
+            obj.slice(mask=my_boolean_array)  # Direct mask
         """
-        # Initialize the mask to all True
-        mask = np.ones(len(self.time), dtype=bool)
+        # Handle direct mask or build mask from criteria
+        if mask is not None:
+            # Use provided mask directly
+            if len(mask) != len(self.time):
+                raise ValueError(f"Mask length ({len(mask)}) doesn't match data length ({len(self.time)})")
+            final_mask = np.array(mask, dtype=bool)
+        else:
+            # Build mask from criteria
+            final_mask = np.ones(len(self.time), dtype=bool)
 
-        # Iterate over the criteria to build the mask
-        for key, value in criteria.items():
-            # TODO: Updated to use dict keys instead of list
-            if key not in self.data_columns.keys():
-                raise ValueError(f"Data column '{key}' not found in the data columns.")
+            # Iterate over the criteria to build the mask
+            for key, value in criteria.items():
+                if key not in self.data_columns.keys():
+                    raise ValueError(f"Data column '{key}' not found in the data columns.")
 
-            data_column = self[key]
+                data_column = self[key]
 
-            # Determine the type of slicing based on the value
-            if isinstance(value, tuple):
-                if len(value) != 2:
-                    raise ValueError(f"The value for '{key}' must be a single value or a tuple of length 2.")
-                lower, upper = value
-                criterion_mask = (data_column >= lower) & (data_column <= upper)
-            else:
-                criterion_mask = (data_column == value)
+                # Handle different value types
+                if isinstance(value, dict):
+                    # Dictionary with operators: {'>=': 0.5, '<': 1.0}
+                    for op, threshold in value.items():
+                        if op == '>=':
+                            criterion_mask = data_column >= threshold
+                        elif op == '>':
+                            criterion_mask = data_column > threshold
+                        elif op == '<=':
+                            criterion_mask = data_column <= threshold
+                        elif op == '<':
+                            criterion_mask = data_column < threshold
+                        elif op == '==':
+                            criterion_mask = data_column == threshold
+                        elif op == '!=':
+                            criterion_mask = data_column != threshold
+                        else:
+                            raise ValueError(f"Unsupported operator '{op}'. Use: '>=', '>', '<=', '<', '==', '!='")
+                        final_mask = final_mask & criterion_mask
+                elif isinstance(value, tuple):
+                    # Tuple for range: (lower, upper)
+                    if len(value) != 2:
+                        raise ValueError(f"The value for '{key}' must be a single value, tuple of length 2, or dict with operators.")
+                    lower, upper = value
+                    criterion_mask = (data_column >= lower) & (data_column <= upper)
+                    final_mask = final_mask & criterion_mask
+                else:
+                    # Single value for equality
+                    criterion_mask = (data_column == value)
+                    final_mask = final_mask & criterion_mask
 
-            # Combine the masks
-            mask = mask & criterion_mask
-            if not np.any(mask):
+            if not np.any(final_mask):
                 warnings.warn(f"No elements match the slicing criteria: {criteria}. Returning an empty instance.")
 
         # Create a new, uninitialized instance of the same class
         sliced_instance = self.__class__.__new__(self.__class__)
 
-        # Copy over all attributes
+        # Copy over all attributes, using boolean indexing for clean data extraction
         for attr_name, attr_value in self.__dict__.items():
-            if isinstance(attr_value, np.ndarray) and attr_value.shape[0] == mask.shape[0]:
-                # Slice data arrays
-                setattr(sliced_instance, attr_name, attr_value[mask])
+            if isinstance(attr_value, np.ndarray) and attr_value.shape[0] == final_mask.shape[0]:
+                # Use boolean indexing to extract only matching data
+                # This gives clean numpy arrays that work seamlessly with matplotlib
+                # Perfect for: x = obj.slice(substep=1).timestamp; ax.plot(x, y)
+                extracted_array = attr_value[final_mask]
+                setattr(sliced_instance, attr_name, extracted_array)
             else:
                 setattr(sliced_instance, attr_name, attr_value)
         
@@ -402,6 +444,7 @@ class ElectroChemistry():
         hover.formatters = {'@timestamp': 'datetime'}
         return hover
 
+    @optional_return_figure
     def plot(self,
         ax=None, # pyplot axes
         x='time', # key for x axis array
@@ -413,36 +456,107 @@ class ElectroChemistry():
         ax_kws = None, # arguments passed to ax.set()
         **kwargs):
         '''Plot data using matplotlib.
-            Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
+            Parameters are seaborn-like. Column filtering can be done via kwargs (e.g., substep=1, cycle=2).
+            Use "-" prefix (e.g., y="-curr") to flip sign. Other kwargs are passed along to pyplot.
+            
+            Args:
+                return_figure: If True, return figure/axes. If False, show plot and return None.
+                
+            Returns:
+                If return_figure=True: (fig, ax) if new figure created, or just ax if axes provided.
+                If return_figure=False: None (after showing plot).
+            '''
         ax_kws = ax_kws or {}
         if x not in ('time', 'timestamp'):
             add_aux_cell = False
             add_aux_counter = False
+        
+        user_provided_ax = ax is not None
         if not ax:
-            _, ax = plt.subplots()
+            fig, ax = plt.subplots()
+        else:
+            fig = None
+        
+        # Separate column filters from plot styling kwargs
+        column_filters = {}
+        plot_kwargs = {}
+        
+        for key, value in kwargs.items():
+            if hasattr(self, key) and hasattr(getattr(self, key), '__len__'):
+                # This is likely a data column that can be used for filtering
+                column_filters[key] = value
+            else:
+                # This is a plot styling parameter
+                plot_kwargs[key] = value
+        
+        # Build combined mask from mask parameter and column filters
         if not mask:
             mask = np.full(self[x].shape, True)
+        else:
+            mask = mask.copy()  # Don't modify the original mask
+        
+        # Apply column filtering
+        filter_info = []
+        for col_name, filter_value in column_filters.items():
+            try:
+                col_data = getattr(self, col_name)
+                if hasattr(col_data, '__len__') and len(col_data) == len(mask):
+                    col_mask = col_data == filter_value
+                    mask = mask & col_mask
+                    filter_info.append(f"{col_name}={filter_value}")
+                else:
+                    warnings.warn(f"Column '{col_name}' exists but has incompatible shape for filtering")
+            except AttributeError:
+                warnings.warn(f"Column filtering requested ({col_name}={filter_value}) but '{col_name}' column not found in data")
+        
+        # Handle sign flipping with '-' prefix
+        flip_y = False
+        y_column = y
+        if y.startswith('-'):
+            flip_y = True
+            y_column = y[1:]  # Remove the '-' prefix to get actual column name
+        
+        # Get data and apply sign flipping if requested
+        x_data = self[x][mask]
+        y_data = self[y_column][mask]
+        if flip_y:
+            y_data = -y_data
+        
         if hue is True: # no hue set by technique
             hue = False
         if hue:
             for val in np.unique(self[hue][mask]):
+                hue_mask = self[hue][mask] == val
+                y_hue_data = self[y_column][self[hue]==val]
+                if flip_y:
+                    y_hue_data = -y_hue_data
                 ax.plot(
                     self[x][self[hue]==val],
-                    self[y][self[hue]==val],
+                    y_hue_data,
                     label = str(val),
-                     **kwargs)
+                     **plot_kwargs)
         else:
-            if 'label' not in kwargs:
-                kwargs['label'] = self.label
-            ax.plot(
-                self[x][mask],
-                self[y][mask],
-                **kwargs)
+            if 'label' not in plot_kwargs:
+                plot_kwargs['label'] = self.label
+            
+            # Use numpy masked arrays to hide unwanted values while preserving structure
+            x_plot = np.ma.array(self[x], mask=~mask)
+            y_plot = np.ma.array(self[y_column], mask=~mask)
+            if flip_y:
+                y_plot = np.ma.multiply(y_plot, -1)
+            
+            # Suppress the masked array conversion warning during plotting
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', message='Warning: converting a masked element to nan')
+                ax.plot(
+                    x_plot,
+                    y_plot,
+                    **plot_kwargs)
         if add_aux_cell:
             if hasattr(self, 'cell_pot') and np.any(np.isfinite(self.cell_pot)):
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
-                    self[x][mask],  # Use the same x-axis data (already masked)
+                    x_data,  # Use the pre-extracted x-axis data
                     self.cell_pot[mask],  # pylint: disable=unsubscriptable-object
                     label='Cell potential',
                     color=last_color, alpha=0.5)
@@ -452,7 +566,7 @@ class ElectroChemistry():
             if hasattr(self, 'counter_pot') and np.any(np.isfinite(self.counter_pot)):
                 last_color = ax.lines[-1].get_color()
                 ax.plot(
-                    self[x][mask],  # Use the same x-axis data (already masked)
+                    x_data,  # Use the pre-extracted x-axis data
                     self.counter_pot[mask],  # pylint: disable=unsubscriptable-object
                     label='Counter potential',
                     color=last_color, alpha=0.5)
@@ -461,52 +575,303 @@ class ElectroChemistry():
         if 'xlabel' not in ax_kws:
             ax_kws['xlabel'] = self.makelab(x)
         if 'ylabel' not in ax_kws:
-            ax_kws['ylabel'] = self.makelab(y)
+            y_label = self.makelab(y_column)
+            if flip_y:
+                y_label = f"- {y_label}"
+            ax_kws['ylabel'] = y_label
         ax.set(**ax_kws) # Set axes properties, such as xlabel etc.
         ax.legend()
-        return ax
+        
+        # If user provided ax, they're managing their own figure - return just the axes
+        # If we created the figure, return both for the decorator to handle
+        if user_provided_ax:
+            return ax
+        else:
+            return fig, ax
 
-    def plotyy(self,
-            fig = None,
-            x = 'time', # key for the common x-axis
-            y_left = 'pot', # key for left y-axis
-            color_left = 'tab:blue', # color for left y-axis
-            y_right = 'curr', # key for right y-axis
-            color_right = 'tab:red', # color for right y-axis
-            hue = None, # split the plot based on values in a third array
-            mask = None, # logical array to slice the arrays
-            ax_left_kws = None, # arguments passed to ax.set()
-            ax_right_kws = None, # arguments passed to ax.set()
-            **kwargs):
-        ''' Possibly not properly implemented!
-        Plot data with two y-scales using matplotlib. 
-            Parameters are seaborn-like. Any additional kwargs are passed along to pyplot'''
-        if not fig:
-            fig = plt.figure()
-        ax_left = fig.add_subplot(111)
-        ax_left = self.plot(ax=ax_left,
-                            x=x,
-                            y=y_left,
-                            color=color_left,
-                            hue=hue,
-                            mask=mask,
-                            ax_kws=ax_left_kws,
-                            **kwargs)
-
+    @optional_return_figure
+    def plot_dual_y(self,
+                   x='time',  # key for the common x-axis
+                   y_left='pot',  # key for left y-axis
+                   y_right='curr',  # key for right y-axis
+                   color_left='tab:blue',  # color for left y-axis
+                   color_right='tab:orange',  # color for right y-axis
+                   figsize=(10, 6),
+                   mask=None,  # logical array to slice the arrays
+                   # Advanced scaling options (for similar-unit dual plots like dual potentials)
+                   scale_range=None,  # Enable matched scaling: None=off, 'auto'=auto-calc, float=fixed range
+                   percentile_range=(5, 95),  # Percentile range to exclude outliers
+                   tick_spacing=0.05,  # Tick spacing for matched scaling
+                   # Standard plot options
+                   hue=None,  # split the plot based on values in a third array
+                   ax_left_kws=None,  # arguments passed to left ax.set()
+                   ax_right_kws=None,  # arguments passed to right ax.set()
+                   **kwargs):
+        """
+        Plot data with two y-scales using matplotlib with optional advanced scaling.
+        
+        Parameters:
+        -----------
+        x, y_left, y_right : str
+            Keys for data columns to plot. Use "-" prefix (e.g., "-pot") to flip sign
+        color_left, color_right : str
+            Colors for left and right y-axes
+        figsize : tuple
+            Figure size
+        mask : array-like, optional
+            Boolean mask to filter data
+        scale_range : None, 'auto', or float, default=None
+            Matched scaling mode: None=independent axes, 'auto'=auto-calculated range, 
+            float=fixed range (e.g., 0.5 for 0.5V range)
+        percentile_range : tuple, default=(5, 95)
+            Percentile range for outlier exclusion when using matched scaling
+        tick_spacing : float, default=0.05
+            Tick spacing when using matched scaling
+        hue : str, optional
+            Column for color grouping
+        ax_left_kws, ax_right_kws : dict, optional
+            Additional axis formatting arguments
+        return_figure : bool, default=False
+            If True, return (fig, (ax_left, ax_right)) for manual handling.
+            If False, automatically call plt.show() and return None.
+        **kwargs : dict
+            Column filtering (e.g., substep=1, cycle=2) and plot styling arguments
+            
+        Returns:
+        --------
+        fig, (ax_left, ax_right) : matplotlib figure and axes objects
+            Only returned if return_figure=True. Otherwise returns None after showing plot.
+            Only returned if auto_show=False. Otherwise returns None after showing plot.
+        """
+        ax_left_kws = ax_left_kws or {}
+        ax_right_kws = ax_right_kws or {}
+        
+        # Create figure and axes
+        fig, ax_left = plt.subplots(figsize=figsize)
         ax_right = ax_left.twinx()
-        ax_right = self.plot(ax=ax_right,
-                             x=x,
-                             y=y_right,
-                             color=color_right,
-                             hue=hue,
-                             mask=mask,
-                             ax_kws=ax_right_kws,
-                             **kwargs)
-
+        
+        # Separate column filters from plot styling kwargs
+        column_filters = {}
+        plot_kwargs = {}
+        
+        for key, value in kwargs.items():
+            if hasattr(self, key) and hasattr(getattr(self, key), '__len__'):
+                # This is likely a data column that can be used for filtering
+                column_filters[key] = value
+            else:
+                # This is a plot styling parameter
+                plot_kwargs[key] = value
+        
+        # Build combined mask from mask parameter and column filters
+        if mask is None:
+            mask = np.ones(len(self[x]), dtype=bool)
+        else:
+            mask = mask.copy()  # Don't modify the original mask
+        
+        # Apply column filtering
+        filter_info = []
+        for col_name, filter_value in column_filters.items():
+            try:
+                col_data = getattr(self, col_name)
+                if hasattr(col_data, '__len__') and len(col_data) == len(mask):
+                    col_mask = col_data == filter_value
+                    mask = mask & col_mask
+                    filter_info.append(f"{col_name}={filter_value}")
+                else:
+                    warnings.warn(f"Column '{col_name}' exists but has incompatible shape for filtering")
+            except AttributeError:
+                warnings.warn(f"Column filtering requested ({col_name}={filter_value}) but '{col_name}' column not found in data")
+        
+        # Handle sign flipping with '-' prefix
+        flip_left = False
+        flip_right = False
+        y_left_column = y_left
+        y_right_column = y_right
+        
+        if y_left.startswith('-'):
+            flip_left = True
+            y_left_column = y_left[1:]  # Remove the '-' prefix
+        if y_right.startswith('-'):
+            flip_right = True
+            y_right_column = y_right[1:]  # Remove the '-' prefix
+        
+        # Get data and apply sign flipping if requested
+        x_data = self[x][mask]
+        y_left_data = self[y_left_column][mask]
+        y_right_data = self[y_right_column][mask]
+        
+        if flip_left:
+            y_left_data = -y_left_data
+        if flip_right:
+            y_right_data = -y_right_data
+        
+        # Plot data
+        if hue:
+            # Plot with hue grouping
+            for val in np.unique(self[hue][mask]):
+                hue_mask = self[hue][mask] == val
+                ax_left.plot(x_data[hue_mask], y_left_data[hue_mask], 
+                           color=color_left, label=f'{y_left} ({val})', **plot_kwargs)
+                ax_right.plot(x_data[hue_mask], y_right_data[hue_mask], 
+                            color=color_right, label=f'{y_right} ({val})', **plot_kwargs)
+        else:
+            # Use numpy masked arrays to hide unwanted values while preserving structure
+            x_plot = np.ma.array(self[x], mask=~mask)
+            y_left_plot = np.ma.array(self[y_left_column], mask=~mask)
+            y_right_plot = np.ma.array(self[y_right_column], mask=~mask)
+            
+            if flip_left:
+                y_left_plot = np.ma.multiply(y_left_plot, -1)
+            if flip_right:
+                y_right_plot = np.ma.multiply(y_right_plot, -1)
+            
+            # Suppress the masked array conversion warning during plotting
+            with warnings.catch_warnings():
+                warnings.filterwarnings('ignore', message='Warning: converting a masked element to nan')
+                ax_left.plot(x_plot, y_left_plot, color=color_left, 
+                            label=self.data_columns.get(y_left, y_left), **plot_kwargs)
+                ax_right.plot(x_plot, y_right_plot, color=color_right, 
+                             label=self.data_columns.get(y_right, y_right), **plot_kwargs)
+        
+        # Apply advanced scaling if requested
+        if scale_range is not None:
+            self._apply_matched_scaling(ax_left, ax_right, y_left_data, y_right_data,
+                                      percentile_range, scale_range, tick_spacing)
+        
+        # Set axis labels and colors (with sign flip indicators)
+        left_label = self.data_columns.get(y_left_column, y_left_column)
+        right_label = self.data_columns.get(y_right_column, y_right_column)
+        
+        if flip_left:
+            left_label = f"- {left_label}"
+        if flip_right:
+            right_label = f"- {right_label}"
+        
+        ax_left.set_xlabel(self.data_columns.get(x, x))
+        ax_left.set_ylabel(left_label, color=color_left)
+        ax_right.set_ylabel(right_label, color=color_right)
+        
+        # Color the axis ticks and spines
+        ax_left.tick_params(axis='y', labelcolor=color_left)
+        ax_right.tick_params(axis='y', labelcolor=color_right)
         ax_left.spines['left'].set_color(color_left)
         ax_right.spines['right'].set_color(color_right)
+        
+        # Apply additional axis formatting
+        if ax_left_kws:
+            ax_left.set(**ax_left_kws)
+        if ax_right_kws:
+            ax_right.set(**ax_right_kws)
+        
+        # Create combined legend
+        lines1, labels1 = ax_left.get_legend_handles_labels()
+        lines2, labels2 = ax_right.get_legend_handles_labels()
+        ax_left.legend(lines1 + lines2, labels1 + labels2, loc='upper right')
+        
+        # Set title
+        title = f'{self.fname}: {self.data_columns.get(y_left, y_left)} vs {self.data_columns.get(y_right, y_right)}'
+        if filter_info:
+            title += f' ({", ".join(filter_info)})'
+        if scale_range is not None:
+            if scale_range == 'auto':
+                scale_info = "auto"
+            elif isinstance(scale_range, (int, float)):
+                scale_info = f"fixed ({scale_range:.3f})"
+            else:
+                scale_info = str(scale_range)
+            title += f' (matched scale: {scale_info})'
+        ax_left.set_title(title)
+        
+        plt.tight_layout()
         return fig, (ax_left, ax_right)
+    
+    def _apply_matched_scaling(self, ax_left, ax_right, y_left_data, y_right_data,
+                             percentile_range, scale_range, tick_spacing):
+        """
+        Apply matched scaling logic for dual y-axis plots.
+        
+        This is useful for plotting similar quantities (e.g., dual potentials)
+        where you want the same scale range for visual comparison.
+        
+        Args:
+            scale_range: 'auto' for auto-calculation or float for fixed range
+        """
+        # Calculate data ranges using percentiles to exclude outliers
+        left_min = np.percentile(y_left_data, percentile_range[0])
+        left_max = np.percentile(y_left_data, percentile_range[1])
+        right_min = np.percentile(y_right_data, percentile_range[0])
+        right_max = np.percentile(y_right_data, percentile_range[1])
+        
+        # Determine scale range
+        if scale_range == 'auto' or scale_range is None:
+            # Auto-calculate from data
+            left_range = left_max - left_min
+            right_range = right_max - right_min
+            scale_range = max(left_range, right_range) * 1.2  # Add 20% padding
+        # else: use the provided numeric scale_range value
+        
+        # Function to round to tick spacing boundaries
+        def round_to_spacing(value, spacing):
+            return np.round(value / spacing) * spacing
+        
+        # Calculate centers and round them to tick spacing boundaries
+        left_center = round_to_spacing((left_min + left_max) / 2, tick_spacing)
+        right_center = round_to_spacing((right_min + right_max) / 2, tick_spacing)
+        
+        # Calculate limits from rounded centers
+        left_lim_min = left_center - scale_range/2
+        left_lim_max = left_center + scale_range/2
+        right_lim_min = right_center - scale_range/2
+        right_lim_max = right_center + scale_range/2
+        
+        # Set the same scale (range) for both axes
+        ax_left.set_ylim(left_lim_min, left_lim_max)
+        ax_right.set_ylim(right_lim_min, right_lim_max)
+        
+        # Create tick positions at specified intervals
+        left_ticks = np.arange(
+            np.ceil(left_lim_min / tick_spacing) * tick_spacing,
+            left_lim_max + tick_spacing/2,
+            tick_spacing
+        )
+        right_ticks = np.arange(
+            np.ceil(right_lim_min / tick_spacing) * tick_spacing,
+            right_lim_max + tick_spacing/2,
+            tick_spacing
+        )
+        
+        ax_left.set_yticks(left_ticks)
+        ax_right.set_yticks(right_ticks)
+        
+        # Format tick labels with appropriate precision
+        decimal_places = max(0, int(-np.log10(tick_spacing)) + 1)
+        formatter = plt.FuncFormatter(lambda x, p: f'{x:.{decimal_places}f}')
+        ax_left.yaxis.set_major_formatter(formatter)
+        ax_right.yaxis.set_major_formatter(formatter)
 
+    def plotyy(self, **kwargs):
+        """
+        Deprecated: Use plot_dual_y() instead.
+        
+        This method is maintained for backward compatibility but plot_dual_y()
+        offers more features and better scaling options.
+        """
+        warnings.warn(
+            "plotyy() is deprecated. Use plot_dual_y() instead for better features and scaling options.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # Handle legacy use_matched_scaling parameter
+        if 'use_matched_scaling' in kwargs:
+            if kwargs.pop('use_matched_scaling'):
+                kwargs['scale_range'] = 'auto'
+        
+        # Remove advanced scaling options that don't exist in old method
+        old_kwargs = {k: v for k, v in kwargs.items() 
+                     if k not in ['percentile_range', 'tick_spacing']}
+        return self.plot_dual_y(**old_kwargs)
+
+    @optional_return_figure
     def plot_overview(self, figsize=(15, 10), max_cols=3):
         """
         Create a grid plot overview of all available data columns.
@@ -514,9 +879,7 @@ class ElectroChemistry():
         Args:
             figsize: Figure size as (width, height) tuple
             max_cols: Maximum number of columns in the grid
-        
-        Returns:
-            tuple: (figure, axes) from matplotlib subplots
+            return_figure: If True, return (fig, axes). If False, show plot and return None.
         """
         # Get all available data columns (exclude timestamp for plotting)
         plot_columns = [col for col in self.data_columns.keys() 
@@ -541,7 +904,12 @@ class ElectroChemistry():
             axes = axes.reshape(1, -1)
         
         # Use timestamp as x-axis data
-        x_data = self.timestamp if hasattr(self, 'timestamp') and len(self.timestamp) > 0 else np.arange(len(getattr(self, plot_columns[0])))
+        if hasattr(self, 'timestamp') and len(self.timestamp) > 0:
+            x_data = self.timestamp
+        else:
+            # Fallback to array indices
+            first_col = getattr(self, plot_columns[0])
+            x_data = np.arange(len(first_col))
         
         plot_count = 0
         for i, col in enumerate(plot_columns):
@@ -557,8 +925,11 @@ class ElectroChemistry():
                 row, col_idx = divmod(plot_count, n_cols)
                 ax = axes[row, col_idx] if n_rows > 1 else axes[col_idx]
                 
-                # Plot the data
-                ax.plot(x_data, y_data, 'b-', linewidth=1, alpha=0.8)
+                # Plot the data directly - matplotlib handles masked arrays natively
+                # Suppress the specific warning about masked element conversion during plotting
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore', message='Warning: converting a masked element to nan')
+                    ax.plot(x_data, y_data, 'b-', linewidth=1, alpha=0.8)
                 
                 # Set title showing both column name and display name
                 display_name = self.data_columns.get(col, col)
@@ -571,8 +942,8 @@ class ElectroChemistry():
                 ax.set_xticklabels([])
                 
                 # Format y-axis for better readability
-                if len(y_data) > 0 and np.any(np.isfinite(y_data)):
-                    y_range = np.ptp(y_data[np.isfinite(y_data)])
+                if len(y_data) > 0:
+                    y_range = np.ptp(y_data)
                     if y_range < 1e-6:
                         ax.ticklabel_format(style='scientific', axis='y', scilimits=(-3, 3))
                 
@@ -592,7 +963,6 @@ class ElectroChemistry():
         
         # Add overall title
         fig.suptitle(f"Data Overview: {self.fname}", fontsize=14, fontweight='bold')
-        plt.show()
         return fig, axes
 
     def set_area(self, new_area: float):
@@ -614,19 +984,3 @@ class ElectroChemistry():
         """
         return self.pot + correction
 
-def _split_by_length(s, length=20):
-    """
-    Splits the input string `s` into chunks of `length`, stripping whitespace from each chunk.
-    
-    Parameters:
-    - s: The input string to be split.
-    - length: The length of each chunk (default is 20).
-    
-    Returns:
-    - A list of stripped chunks of the input string.
-    """
-    result = []
-    while s:
-        result.append(s[:length].strip())
-        s = s[length:]
-    return result

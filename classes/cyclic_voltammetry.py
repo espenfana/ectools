@@ -6,6 +6,7 @@ from numpy.typing import NDArray
 from matplotlib.axes import Axes
 
 from .electrochemistry import ElectroChemistry
+from ..utils import optional_return_figure
 
 # CyclicVoltammetry Class
 class CyclicVoltammetry(ElectroChemistry):
@@ -103,6 +104,7 @@ class CyclicVoltammetry(ElectroChemistry):
             self.pot_lower = self.pot_upper
             self.pot_upper = tmp
 
+    @optional_return_figure
     def plot(self,
              ax: Optional[Axes] = None,
              x: str = 'pot',
@@ -119,7 +121,7 @@ class CyclicVoltammetry(ElectroChemistry):
             hue = 'cycle'
         if cycles:
             mask = np.where(np.logical_and(self['cycle']>=cycles[0], self['cycle']<=cycles[1]))
-        ax = super().plot(ax=ax,
+        fig, ax = super().plot(ax=ax,
                           x=x,
                           y=y,
                           mask=mask,
@@ -127,10 +129,11 @@ class CyclicVoltammetry(ElectroChemistry):
                           add_aux_cell=add_aux_cell,
                           add_aux_counter=add_aux_counter,
                           ax_kws=ax_kws,
+                          return_figure=True,  # Always get the figure back from parent
                           **kwargs)
         if hue:
             ax.legend(title=hue)
-        return ax    
+        return fig, ax    
     
     def filter_cycle(self, column: str, cycles: Union[List[int], int, str]) -> np.ndarray:
         """

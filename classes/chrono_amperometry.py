@@ -4,6 +4,7 @@ from matplotlib.axes import Axes
 import numpy as np
 
 from .electrochemistry import ElectroChemistry
+from ..utils import optional_return_figure
 
 class ChronoAmperometry(ElectroChemistry):
     '''Chronoamperometry file container'''
@@ -31,6 +32,7 @@ class ChronoAmperometry(ElectroChemistry):
         super().parse_meta_mpt() # Preprocess the metadata block
         
 
+    @optional_return_figure
     def plot(self,
             ax: Optional[Axes] = None,
             x: str = 'time',
@@ -42,9 +44,9 @@ class ChronoAmperometry(ElectroChemistry):
             ax_kws: Optional[Dict[str, Any]] = None,
             **kwargs: Any) -> Axes:
         '''Plot data using matplotlib. Any kwargs are passed along to pyplot'''
-        ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, 
+        fig, ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue, 
                          add_aux_cell=add_aux_cell, add_aux_counter=add_aux_counter,
-                         ax_kws=ax_kws, **kwargs)
+                         ax_kws=ax_kws, return_figure=True, **kwargs)  # Always get the figure back from parent
         if hue:
             ax.legend(title=hue)
-        return ax
+        return fig, ax
