@@ -13,7 +13,7 @@ import pandas as pd
 
 # Relational imports
 from .classes import EcList, ElectroChemistry
-from .config import get_config
+from .config import get_config, get_post_process
 from .auxiliary_sources import AuxiliaryDataHandler
 import warnings
 # classes is a collection of container objects meant for different methods
@@ -49,6 +49,33 @@ class EcImporter:
 
     def _setup_logging(self, log_level):
         '''Set up logging for the EcImporter class.'''
+        # Set the root ectools logger level so all children inherit it
+        root_logger = logging.getLogger('ectools')
+        
+        # Map string log levels to logging module levels
+        log_levels = {
+            "DEBUG": logging.DEBUG,
+            "INFO": logging.INFO,
+            "WARNING": logging.WARNING,
+            "ERROR": logging.ERROR,
+            "CRITICAL": logging.CRITICAL
+        }
+        
+        root_logger.setLevel(log_levels.get(log_level.upper(), logging.ERROR))
+        
+        # Set up console handler if not already present
+        if not root_logger.handlers:
+            console_handler = logging.StreamHandler()
+            console_handler.setLevel(log_levels.get(log_level.upper(), logging.ERROR))
+            formatter = logging.Formatter('%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s')
+            console_handler.setFormatter(formatter)
+            root_logger.addHandler(console_handler)
+        
+        # Your existing logger setup for the importer itself
+        self.logger = logging.getLogger(__name__)
+
+    def _setup_logging_old(self, log_level):
+        '''Set up logging for the EcImporter class.'''
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(logging.DEBUG)  # Set logger to capture all levels, handlers will filter
 
@@ -79,7 +106,7 @@ class EcImporter:
         self.logger.addHandler(console_handler)
 
     def load_folder(self, fpath: str, data_folder_id=None, aux_folder_id=None, sort_by=None, 
-                    collation_mapping=None, **kwargs) -> EcList:
+                    collation_mapping=None, aux_only=False, **kwargs) -> EcList:
         '''
         Parse and load the contents of a folder and its subfolders.
         Ignores folders starting with '_' and only includes subfolders containing data_folder_id.
@@ -99,6 +126,8 @@ class EcImporter:
                              'kwargs': {'default_label': 'experiment'}}}
                     Enhanced: {PulsedElectrolysis: {'id_numbers': {4: {'label': 'E1 experiment'}, 
                                9: {'label': 'E3 experiment'}}, 'cyclic': False}}
+            aux_only: If True, skip loading electrochemistry data files and only load auxiliary data.
+                     Useful for quick access to temperature, pico data, etc. Default False.
             **kwargs: Additional arguments passed to EcList
         '''
         # Get folder identifiers from config or use overrides
@@ -107,51 +136,55 @@ class EcImporter:
         
         self.logger.debug('Using folder identifiers - data: "%s", aux: "%s"', data_id, aux_id)
         
-        all_files = []
-        
-        for root, dirs, files in os.walk(fpath):
-            folder_name = os.path.basename(root)
-            
-            # Always include main folder, skip subfolders starting with '_'
-            if root != fpath:
-                if folder_name.startswith('_'):
-                    continue
-                # Only include subfolders containing data_id (case-insensitive)
-                if data_id.lower() not in folder_name.lower():
-                    continue
-                    
-            try:
-                all_files.extend([(root, f) for f in files if os.path.isfile(os.path.join(root, f))])
-                if root != fpath:
-                    self.logger.debug('Included subfolder: %s', root)
-            except (OSError, PermissionError) as e:
-                self.logger.warning('Error accessing folder %s: %s', root, e)
-        
-        self.logger.info('Found %d files to process', len(all_files))
         eclist = EcList(fpath=fpath, **kwargs)
-        ignored = 0
         
-        # Log progress at regular intervals
-        progress_interval = max(1, len(all_files) // 10)  # Log every 10% or at least every file
-        
-        for i, (file_path, fname) in enumerate(all_files):
-            try:
-                f = self.load_file(file_path, fname)
-                if f:
-                    eclist.append(f)
-                else:
-                    ignored += 1
-            except (FileNotFoundError, PermissionError, UnicodeDecodeError, RuntimeError) as e:
-                self.logger.warning('Error processing file %s: %s', fname, e)
-                ignored += 1
+        if aux_only:
+            self.logger.info('aux_only=True: Skipping electrochemistry data file loading')
+        else:
+            all_files = []
             
-            # Log progress at intervals
-            if (i + 1) % progress_interval == 0 or i == len(all_files) - 1:
-                self.logger.info('Processed %d/%d files (%d parsed, %d ignored)', 
-                               i + 1, len(all_files), len(eclist), ignored)
-        
-        self.logger.info('Completed processing: %d files total, %d parsed, %d ignored', 
-                        len(all_files), len(eclist), ignored)
+            for root, dirs, files in os.walk(fpath):
+                folder_name = os.path.basename(root)
+                
+                # Always include main folder, skip subfolders starting with '_'
+                if root != fpath:
+                    if folder_name.startswith('_'):
+                        continue
+                    # Only include subfolders containing data_id (case-insensitive)
+                    if data_id.lower() not in folder_name.lower():
+                        continue
+                        
+                try:
+                    all_files.extend([(root, f) for f in files if os.path.isfile(os.path.join(root, f))])
+                    if root != fpath:
+                        self.logger.debug('Included subfolder: %s', root)
+                except (OSError, PermissionError) as e:
+                    self.logger.warning('Error accessing folder %s: %s', root, e)
+            
+            self.logger.info('Found %d files to process', len(all_files))
+            ignored = 0
+            
+            # Log progress at regular intervals
+            progress_interval = max(1, len(all_files) // 10)  # Log every 10% or at least every file
+            
+            for i, (file_path, fname) in enumerate(all_files):
+                try:
+                    f = self.load_file(file_path, fname)
+                    if f:
+                        eclist.append(f)
+                    else:
+                        ignored += 1
+                except (FileNotFoundError, PermissionError, UnicodeDecodeError, RuntimeError) as e:
+                    self.logger.warning('Error processing file %s: %s', fname, e)
+                    ignored += 1
+                
+                # Log progress at intervals
+                if (i + 1) % progress_interval == 0 or i == len(all_files) - 1:
+                    self.logger.info('Processed %d/%d files (%d parsed, %d ignored)', 
+                                   i + 1, len(all_files), len(eclist), ignored)
+            
+            self.logger.info('Completed processing: %d files total, %d parsed, %d ignored', 
+                            len(all_files), len(eclist), ignored)
         
         # Process collation mapping before auxiliary data handling
         if collation_mapping:
@@ -202,7 +235,20 @@ class EcImporter:
                     self.logger.warning('All %d auxiliary data sources failed to load', failed_sources)
                 else:
                     self.logger.info('No auxiliary data sources configured')
-
+        # Apply post-processing special logic if available
+        POST_PROCESS = get_post_process()
+        self.logger.debug(f'Post-processing with special logic: {POST_PROCESS is not None}')
+        if POST_PROCESS:
+            self.logger.debug('Applying post-processing special logic...')
+            if callable(POST_PROCESS):
+                self.logger.info('Applying post-processing special logic...')
+                try:
+                    POST_PROCESS(eclist)
+                    self.logger.info('Post-processing completed successfully')
+                except Exception as e:
+                    self.logger.error('Error during post-processing: %s', e)
+            else:
+                self.logger.warning('POST_PROCESS is not callable, skipping post-processing')
         # if self.aux_importer:
         #     try:
         #         self.logger.info('Importing auxiliary data...')

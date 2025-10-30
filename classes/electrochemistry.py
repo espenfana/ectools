@@ -983,4 +983,3 @@ class ElectroChemistry():
             np.ndarray: Corrected potential values.
         """
         return self.pot + correction
-

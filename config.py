@@ -45,6 +45,26 @@ def get_config(key: str) -> any:
     """
     return _config.get(key)
 
+# ---
+# Special localized logic - use lazy import to avoid circular dependency
+POST_PROCESS = None
+
+def _load_post_process():
+    """Lazy loading of post-processing function to avoid circular imports."""
+    global POST_PROCESS
+    if POST_PROCESS is None:
+        try:
+            from bcsec.special_logic import post_process_eclist
+            POST_PROCESS = post_process_eclist
+        except ImportError:
+            POST_PROCESS = False  # Use False to indicate failed import, None means not attempted
+    return POST_PROCESS
+
+def get_post_process():
+    """Get the post-processing function, loading it if necessary."""
+    return _load_post_process() if _load_post_process() is not False else None
+
+# ---
 NOTEBOOK = 'notebook'
 FILE = 'file'
 

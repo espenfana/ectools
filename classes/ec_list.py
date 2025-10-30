@@ -41,8 +41,8 @@ class EcList(List[T], Generic[T]):
         Return a pretty-printable description of EcList contents.
 
         This method generates a DataFrame containing details about each element
-        in the EcList, including the index, filename, technique, start time, 
-        and finish time. The DataFrame is then converted to a string for 
+        in the EcList, including the index, filename, technique, start time,
+        and finish time. The DataFrame is then converted to a string for
         pretty-printable output.
 
         Returns:
@@ -64,7 +64,7 @@ class EcList(List[T], Generic[T]):
                 finished
             ]
         return describe_df.to_string(index=False)
-    
+
     def area_corrections(self, corrections_map: Optional[Dict[str, Dict[str, float]]] = None) -> None:
         """
         Apply area corrections to the files in the EcList.
@@ -102,8 +102,8 @@ class EcList(List[T], Generic[T]):
                     if f.we_number == electrode_number:
                         f.set_area(area)
         except Exception as e:
-            raise ValueError(f"Error applying area corrections: {str(e)}") from e    
-        
+            raise ValueError(f"Error applying area corrections: {str(e)}") from e
+
     def filter(self, fids: Optional[List[str]] = None, sorting: Optional[str] = None, between: bool = False, **kwargs: Any) -> 'EcList[T]':
         """
         Select files based on a list of file IDs (fids), a range if between_fids=True and fids has 2 items,
@@ -167,8 +167,8 @@ class EcList(List[T], Generic[T]):
         eclist_out.extend(selected_files)
         if sorting:
             eclist_out.sort(key=lambda f: getattr(f, sorting), reverse=False)
-        return eclist_out    
-    
+        return eclist_out
+
     def select(self, fid: Optional[str] = None, **kwargs: Any) -> T:
         """
         Select a single file based on a file ID (fid) OR matching all attribute key-value pair.
@@ -185,7 +185,7 @@ class EcList(List[T], Generic[T]):
             ValueError: If no files match the criteria.
         """
         selected_files: 'EcList[T]'
-        if fid: 
+        if fid:
             selected_files = self.filter(fids=[fid])
         elif kwargs:
             selected_files = self
@@ -194,7 +194,7 @@ class EcList(List[T], Generic[T]):
         else:
             raise ValueError("Either fid or kwargs must be provided")
 
-        if len(selected_files) > 1:        
+        if len(selected_files) > 1:
             warnings.warn(
                 f"Multiple files found matching the provided criteria: {kwargs or fid}. "
                 "Returning the first match."
@@ -204,10 +204,10 @@ class EcList(List[T], Generic[T]):
         # Return the first selected file
         return selected_files[0]
 
-    def plot(self, 
-             group: Optional[str] = None, 
-             merge: bool = False, 
-             titles: Optional[str] = 'fname', 
+    def plot(self,
+             group: Optional[str] = None,
+             merge: bool = False,
+             titles: Optional[str] = 'fname',
              **kwargs: Any) -> None:
         """Plot data using matplotlib. Any kwargs are passed along to f.plot()"""
         if merge:
@@ -254,19 +254,124 @@ class EcList(List[T], Generic[T]):
         if fid in self._fid_idx:
             return self[self._fid_idx[fid]]
         raise ValueError(f"File ID '{fid}' not found in the list.")
-    
+
+    def _detect_shared_filename_prefix(self, files):
+        """
+        Detect shared filename prefix with smart handling of ID and cycle variations.
+
+        Args:
+            files: List of ElectroChemistry objects
+
+        Returns:
+            str or None: Shared filename prefix (≥8 chars) or None if too short
+        """
+        if len(files) <= 1:
+            return files[0].fname if files else None
+
+        delimiters = ['_', '-', ' ', '.']
+        def split_with_delimiters(text, delimiters):
+            """Split text but keep delimiters with their preceding parts"""
+            pattern = '([' + ''.join(re.escape(d) for d in delimiters) + '])'
+            parts = re.split(pattern, text)
+            result = []
+            for i in range(0, len(parts), 2):
+                part = parts[i]
+                if i + 1 < len(parts):  # Has a delimiter after it
+                    delimiter = parts[i + 1]
+                    result.append(part + delimiter)
+                else:  # Last part with no delimiter
+                    if part:  # Don't add empty parts
+                        result.append(part)
+            return result
+
+        def is_id_variation(parts_list):
+            """Check if parts differ only by ID variations (e.g., 14a vs 14b)"""
+            if not parts_list or len(set(parts_list)) == 1:
+                return False
+
+            # Check if all parts follow pattern: digits + optional single letter
+            id_pattern = re.compile(r'^(\d+)([a-zA-Z]?)_?$')
+            base_numbers = set()
+
+            for part in parts_list:
+                match = id_pattern.match(part)
+                if match:
+                    base_num = match.group(1)
+                    base_numbers.add(base_num)
+                else:
+                    return False  # Not an ID pattern
+
+            # If all have the same base number, it's just letter variations
+            return len(base_numbers) == 1
+        def is_cycle_variation(parts_list):
+            """Check if parts differ only by cycle numbers (e.g., #1 vs #2)"""
+            if not parts_list or len(set(parts_list)) == 1:
+                return False
+
+            # Check if all parts follow pattern: #number
+            cycle_pattern = re.compile(r'^#(\d+)\..*$')
+
+            for part in parts_list:
+                if not cycle_pattern.match(part):
+                    return False
+
+            return True
+
+        filenames = [split_with_delimiters(f.fname, delimiters) for f in files]
+
+        # Find common prefix, but skip over ID and cycle variations
+        filename = ""
+        min_length = min(len(fname) for fname in filenames)
+
+        for i in range(min_length):
+            parts = [fname[i] for fname in filenames]
+
+            if all(p == parts[0] for p in parts):
+                # All parts are identical - add to common prefix
+                filename += parts[0]
+            elif is_id_variation(parts):
+                # ID variation - use base pattern and continue
+                # Extract base number from first part
+                match = re.match(r'^(\d+)[a-zA-Z]?(_?)$', parts[0])
+                if match:
+                    base_num = match.group(1)
+                    delimiter = match.group(2)
+                    filename += f"{base_num}x{delimiter}"  # Use 'x' as placeholder for variation
+            elif is_cycle_variation(parts):
+                # Cycle variation - use pattern and continue
+                filename += "#x."  # Use 'x' as placeholder for cycle number
+                # Need to handle the file extension part
+                ext_match = re.match(r'^#\d+\.(.+)$', parts[0])
+                if ext_match:
+                    filename += ext_match.group(1)
+                break  # Cycle is usually at the end
+            else:
+                # Significant difference - stop here
+                break
+
+        # Clean up the filename and only use if meaningful length
+        if filename:
+            # Remove trailing delimiter if present
+            if filename.endswith(('_', '-', ' ', '.')):
+                filename = filename[:-1]
+
+            # Only use if prefix is 8 characters or longer (more conservative for meaningful names)
+            filename = filename if len(filename) >= 8 else None
+
+        return filename
+
     def collate_data(self, cyclic=False):
         """
         Collate data from files in the current EcList for conversion to derivative classes.
-        
+
         Args:
             target_class_name: str - name of target class (for reference/debugging)
             cyclic: bool - if True, files are treated as cyclic data and ordered by starttime,
                           with cycle numbers extracted from filenames and cycle order validated
-            
+
         Returns:
             tuple: (filename, data_dict, meta_dict)
-                - filename: str or None - shared filename prefix from delimited parts (≥5 chars) or None if too short
+                - filename: str or None - shared filename prefix from delimited parts (≥8 chars) or None if too short
                 - data_dict: dict with collated data columns including:
                   * time: unified timeline from timestamps (first timestamp = 0)
                   * time_rel: original relative time from each file
@@ -280,34 +385,34 @@ class EcList(List[T], Generic[T]):
         """
         if not self:
             raise ValueError("No files in EcList to collate")
-            
+
         # Get all files from the current EcList
         files = list(self)
-        
+
         # If cyclic, sort files by starttime to ensure proper chronological order
         if cyclic:
             files.sort(key=lambda f: f.starttime if f.starttime else datetime.min)
-        
+
         # Initialize output dictionaries
         data_dict = {}
         meta_dict = {}
-        
+
         # Initialize data collection lists
         all_timestamps = []
         all_time_rel = []
         step_numbers = []
         source_tags = []
         cycle_numbers = []
-        
+
         # Collect all timestamps, relative times, and cycle information
         file_cycle_numbers = []  # Track cycle numbers by file for validation
-        
+
         for step_idx, f in enumerate(files):
             all_timestamps.extend(f.timestamp)
             all_time_rel.extend(f.time)
             step_numbers.extend([step_idx] * len(f.time))
             source_tags.extend([f.tag] * len(f.time))
-            
+
             # Handle cycle numbers for cyclic data
             if cyclic:
                 # Inline cycle extraction: pattern must have # before the number
@@ -317,22 +422,22 @@ class EcList(List[T], Generic[T]):
                 else:
                     cycle_num = 0  # Default to 0 if no cycle number found
                     print(f"Warning: No cycle number found in filename {f.fname}, defaulting to cycle 0")
-                
+
                 file_cycle_numbers.append(cycle_num)
                 cycle_numbers.extend([cycle_num] * len(f.time))
             else:
                 cycle_numbers.extend([0] * len(f.time))  # Default to 0 for non-cyclic
-            
+
             # Store metadata for each file
             meta_dict[f.fname] = f.meta
-            
+
         # Validate cycle order for cyclic data
         if cyclic and len(set(file_cycle_numbers)) > 1:
             sorted_cycles = sorted(set(file_cycle_numbers))
             expected_cycles = list(range(min(file_cycle_numbers), max(file_cycle_numbers) + 1))
             if file_cycle_numbers != sorted(file_cycle_numbers) or sorted_cycles != expected_cycles:
                 raise ValueError(f"Cycle order issue detected. Found cycles in order: {file_cycle_numbers}")
-        
+
         # Create substep column (relative step number within each cycle)
         substep_numbers = []
         if cyclic:
@@ -347,7 +452,7 @@ class EcList(List[T], Generic[T]):
         else:
             # For non-cyclic data, substep is the same as step
             substep_numbers = step_numbers.copy()
-            
+
         # Convert timestamps to relative time (first timestamp = 0)
         if all_timestamps:
             first_timestamp = all_timestamps[0]
@@ -355,7 +460,6 @@ class EcList(List[T], Generic[T]):
                                   for ts in all_timestamps])
         else:
             time_column = np.array([])
-            
         # Add the new/modified columns
         data_dict['time'] = time_column
         data_dict['time_rel'] = np.array(all_time_rel)
@@ -366,20 +470,17 @@ class EcList(List[T], Generic[T]):
         if cyclic:
             # Add cycle numbers to the data dictionary (one per data point, not per file)
             data_dict['cycle'] = np.array(cycle_numbers)
-        
+
         # Get all possible data columns from all files
         all_columns = set()
         for f in files:
             # TODO: Updated to use dict keys instead of list
             all_columns.update(f.data_columns.keys())
-            
         # Remove columns we've already handled
         remaining_columns = all_columns - {'time', 'timestamp'}
-        
         # Collate each data column
         for col in remaining_columns:
             collated_data = []
-            
             for f in files:
                 if hasattr(f, col) and len(getattr(f, col)) > 0:
                     collated_data.extend(getattr(f, col))
@@ -391,35 +492,12 @@ class EcList(List[T], Generic[T]):
                     else:
                         # Other columns get NaN
                         fill_value = np.nan
-                    
+
                     collated_data.extend([fill_value] * len(f.time))
-                    
+
             data_dict[col] = np.array(collated_data)
-            
-        # # Merge auxiliary data
-        # for f in files:
-        #     if hasattr(f, 'aux') and f.aux:
-        #         for aux_type, aux_data in f.aux.items():
-        #             if aux_type not in aux_dict:
-        #                 aux_dict[aux_type] = {}
-                        
-        #             if isinstance(aux_data, dict):
-        #                 for key, value in aux_data.items():
-        #                     if key in aux_dict[aux_type]:
-        #                         # If key exists, try to concatenate arrays
-        #                         if isinstance(value, np.ndarray) and isinstance(aux_dict[aux_type][key], np.ndarray):
-        #                             aux_dict[aux_type][key] = np.concatenate([aux_dict[aux_type][key], value])
-        #                         # For non-arrays, keep the first occurrence
-        #                     else:
-        #                         aux_dict[aux_type][key] = value
-        #             else:
-        #                 # Handle non-dict auxiliary data
-        #                 aux_dict[aux_type] = aux_data
-        
-        # Detect common attributes across files (not data columns)
-        required_attributes = ('area', 'we_number')
+
         attributes = {}
-        
         def get_basic_attributes(obj):
             """Get attributes that are basic data types (int, float, str, bool)"""
             attrs = {}
@@ -430,12 +508,12 @@ class EcList(List[T], Generic[T]):
                 if isinstance(value, (int, float, str, bool, type(None))):
                     attrs[name] = value
             return attrs
-        
+
         def check_attribute_consistency(attr_name, is_required=False):
             """Check if an attribute is consistent across all files"""
             values = [getattr(f, attr_name) for f in files if hasattr(f, attr_name)]
             non_none_values = [v for v in values if v is not None]
-            
+
             if not non_none_values:
                 return None
             elif len(set(non_none_values)) == 1:
@@ -446,19 +524,20 @@ class EcList(List[T], Generic[T]):
                 return non_none_values[0]
             else:
                 return None  # Inconsistent non-required attributes are skipped
-        
+
         # Process required attributes first
+        required_attributes = []  # Define required attributes (currently none defined)
         for attr_name in required_attributes:
             value = check_attribute_consistency(attr_name, is_required=True)
             if value is not None:
                 attributes[attr_name] = value
-        
+
         # Find all common basic attributes across files
         if files:
             common_attrs = set(get_basic_attributes(files[0]).keys())
             for f in files[1:]:
                 common_attrs &= set(get_basic_attributes(f).keys())
-            
+
             # Check consistency for each common attribute
             for attr_name in common_attrs:
                 if attr_name not in attributes:  # Don't override required attributes
@@ -466,57 +545,24 @@ class EcList(List[T], Generic[T]):
                     if value is not None:
                         attributes[attr_name] = value
 
-        
         # Detect shared filename prefix
-        if len(files) > 1:
-            delimiters = ['_', '-', ' ', '.']
-            
-            def split_with_delimiters(text, delimiters):
-                """Split text but keep delimiters with their preceding parts"""
-                pattern = '([' + ''.join(re.escape(d) for d in delimiters) + '])'
-                parts = re.split(pattern, text)
-                result = []
-                for i in range(0, len(parts), 2):
-                    part = parts[i]
-                    if i + 1 < len(parts):  # Has a delimiter after it
-                        delimiter = parts[i + 1]
-                        result.append(part + delimiter)
-                    else:  # Last part with no delimiter
-                        if part:  # Don't add empty parts
-                            result.append(part)
-                return result
-            
-            filenames = [split_with_delimiters(f.fname, delimiters) for f in files]
-            # Find common prefix among all filenames
-            filename = ""
-            for i in range(len(filenames[0])):
-                parts = [fname[i] for fname in filenames if i < len(fname)]
-                if all(p == parts[0] for p in parts):
-                    filename += parts[0]
-                else:
-                    break
-
-            # Only use if prefix is 5 characters or longer
-            filename = filename[:-1] if len(filename) >= 5 else None
-        else:
-            # Single file case
-            filename = files[0].fname if files else None
+        filename = self._detect_shared_filename_prefix(files)
         return filename, attributes, data_dict, meta_dict
 
     def collate_convert(self, target_class: type[T], cyclic: bool = False, **kwargs) -> T:
         """
-        Convert file(s) in EcList to a target class and replace items in EcList with converted object. 
+        Convert file(s) in EcList to a target class and replace items in EcList with converted object.
         Multiple files will be collated into a single object.
-        
+
         Args:
             target_class (type[T]): The target class to convert to (must inherit from ElectroChemistry)
             cyclic (bool): If True, files are treated as cyclic data and ordered by starttime,
                           with cycle numbers extracted from filenames and cycle order validated
             **kwargs: Additional keyword arguments that will be set as attributes on the converted object
-            
+
         Returns:
             EcList: A new EcList containing the converted object
-            
+
         Note:
             - Data from all files in the EcList is collated using collate_data()
             - Common attributes across files are automatically detected and preserved
@@ -534,20 +580,20 @@ class EcList(List[T], Generic[T]):
             fpath=self.fpath,
             meta=meta_dict
         )
-        
+
         # Set the collated data columns
         for key, value in data_dict.items():
             converted_obj[key] = value
-            
+
         # Build comprehensive data_columns dictionary from all source files
         # Start with target class's default data_columns
         comprehensive_data_columns = getattr(converted_obj, 'data_columns', {}).copy()
-        
+
         # Add data_columns from all source files to include auxiliary columns
         for f in self:
             if hasattr(f, 'data_columns'):
                 comprehensive_data_columns.update(f.data_columns)
-        
+
         # Add display names for new columns generated by collate_data()
         collated_columns = {
             'time_rel': 'Relative Time (s)',              # Original relative time from each file
@@ -556,18 +602,18 @@ class EcList(List[T], Generic[T]):
             'cycle': 'Cycle Number',                      # Cycle number (for cyclic data)
             'source_tag': 'Source Technique',             # Technique tag from source file
         }
-        
+
         # Add collated columns to comprehensive dictionary
         comprehensive_data_columns.update(collated_columns)
-        
+
         # Only keep columns that are actually present in the collated data
-        final_data_columns = {col: display_name 
-                             for col, display_name in comprehensive_data_columns.items() 
+        final_data_columns = {col: display_name
+                             for col, display_name in comprehensive_data_columns.items()
                              if col in data_dict}
-        
+
         # Set the updated data_columns dictionary
         converted_obj.data_columns = final_data_columns
-        
+
         # Set the attributes
         for key, value in attributes.items():
             setattr(converted_obj, key, value)
@@ -581,7 +627,7 @@ class EcList(List[T], Generic[T]):
         # Add kwargs as attributes to the converted object
         for key, value in kwargs.items():
             setattr(converted_obj, key, value)
-        
+
         return converted_obj
 
     def replace(self, target_object, target_eclist=None) -> 'EcList[T]':
@@ -603,4 +649,3 @@ class EcList(List[T], Generic[T]):
         if not inserted:
             print(f"Warning: No files from the original EcList matched the target files {target_eclist}.")
         return eclist_out
-        

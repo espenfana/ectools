@@ -193,6 +193,10 @@ class AuxiliaryDataSource(ABC):
         '''
         self.auxiliary_folders = auxiliary_folders
 
+        # Set up hierarchical logger that inherits from ectools logger
+        logger_name = f'ectools.{self.__class__.__module__}.{self.__class__.__name__}'
+        self.logger = logging.getLogger(logger_name)
+
     def __contains__(self, key):
         '''Check if attribute exists (for use with 'in' operator)'''
         return hasattr(self, key)
@@ -287,10 +291,41 @@ class AuxiliaryDataSource(ABC):
         '''
         if hasattr(self, key):
             return getattr(self, key)
-        raise KeyError(f"'{self.__class__.__name__}' object has no attribute '{key}'")
+        
+        # Get all available data columns for helpful error message
+        available_columns = list(self.data_columns.keys()) if hasattr(self, 'data_columns') else []
+        if hasattr(self, 'main_data_columns') and self.main_data_columns:
+            available_columns.extend(self.main_data_columns)
+        
+        # Remove duplicates and sort
+        available_columns = sorted(set(available_columns))
+        
+        raise KeyError(
+            f"'{self.__class__.__name__}' object has no key '{key}'. "
+            f"Available data columns: {available_columns}"
+        )
+
+    def __getattr__(self, name: str):
+        '''Provide helpful error messages for missing attributes.
+        
+        This is called only when normal attribute lookup fails.
+        '''
+        # Get all available data columns for helpful error message
+        available_columns = list(self.data_columns.keys()) if hasattr(self, 'data_columns') else []
+        if hasattr(self, 'main_data_columns') and self.main_data_columns:
+            available_columns.extend(self.main_data_columns)
+        
+        # Remove duplicates and sort
+        available_columns = sorted(set(available_columns))
+        
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{name}'. "
+            f"Available data columns: {available_columns}"
+        )
 
     def __setitem__(self, key: str, value: Any) -> None:
-        '''Set attributes like a dictionary.
+        '''Set attributes like a dictionary.profile.ps1 cannot 
+be loaded because running scripts is disabled on this system.
         
         Args:
             key: The attribute name to set
