@@ -10,8 +10,8 @@ class ChronoAmperometry(ElectroChemistry):
     '''Chronoamperometry file container'''
 
     # Class variables and constants
-    identifiers = {'Chronoamperometry', 'CHRONOA'} # Strings in the files which indicate technique
-    column_patterns = {**ElectroChemistry.column_patterns,
+    _identifiers = {'Chronoamperometry', 'CHRONOA'} # Strings in the files which indicate technique
+    _column_patterns = {**ElectroChemistry._column_patterns,
     }
     # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
     # naming scheme. The values should be list-like to support multiple different regex identifiers,

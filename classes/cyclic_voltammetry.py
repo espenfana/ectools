@@ -13,8 +13,8 @@ class CyclicVoltammetry(ElectroChemistry):
     '''Cyclic voltammetry file container'''
 
     # Class variables and constants
-    identifiers = {'Cyclic Voltammetry', 'CV'}  # Strings in the raw files which indicate the technique
-    column_patterns = {**ElectroChemistry.column_patterns,
+    _identifiers = {'Cyclic Voltammetry', 'CV'}  # Strings in the raw files which indicate the technique
+    _column_patterns = {**ElectroChemistry._column_patterns,
         'oxred': (r'ox/red',),
         'cat': (r'cat', r'cathodic'),
         'cycle': (r'cycle number', r'cycle'),

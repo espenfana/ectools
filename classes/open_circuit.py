@@ -10,8 +10,8 @@ class OpenCircuit(ElectroChemistry):
     '''Open Circuit Voltage file container'''
 
     # Class variables and constants
-    identifiers = {'Open Circuit', 'CORPOT'}
-    column_patterns = {**ElectroChemistry.column_patterns,
+    _identifiers = {'Open Circuit', 'CORPOT'}
+    _column_patterns = {**ElectroChemistry._column_patterns,
     }
     # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
     # naming scheme. The values should be list-like to support multiple different regex identifiers,

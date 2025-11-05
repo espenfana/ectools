@@ -29,13 +29,13 @@ from ..utils import optional_return_figure, split_by_length
 class ElectroChemistry():
     ''' The default container and parent class for containing electrochemistry files and methods
     '''
-    # Class variables and constants
-    identifiers = set()
+    # Private class metadata - used only during import/parsing, not for user interaction
+    _identifiers = set()
 
     # Data columns to be imported. Keys will become instance attributes so must adhere to a strict
     # naming scheme. The values should be list-like to support multiple different regex identifiers,
     # which are used in a re.search.
-    column_patterns = {
+    _column_patterns = {
         'redherring': (r'redherring',), # An identifier which is not found will not generate errors
         'signal': (r'Sig',), # Signal, i.e. target potenital
         'time': (r'time/(.?s)',r'^T$',), # Time column
@@ -397,6 +397,7 @@ class ElectroChemistry():
     def makelab(self, key):
         '''Generate an axis label with unit'''
         # TODO: Consider using display names from data_columns dict instead of hardcoded labels
+        warnings.warn("Labels should be available from data_columns, instead of this method", DeprecationWarning, stacklevel=2)
         d = {'curr': 'I ', 'pot': 'E ', 'time': 't', 'curr_dens': 'I\''}
         if key not in d:
             return key
@@ -857,7 +858,8 @@ class ElectroChemistry():
         offers more features and better scaling options.
         """
         warnings.warn(
-            "plotyy() is deprecated. Use plot_dual_y() instead for better features and scaling options.",
+            "plotyy() is deprecated and may be removed at a later time. "
+            "Use plot_dual_y() instead for better features and scaling options.",
             DeprecationWarning,
             stacklevel=2
         )
@@ -983,3 +985,50 @@ class ElectroChemistry():
             np.ndarray: Corrected potential values.
         """
         return self.pot + correction
+
+    def list_properties(self):
+        """
+        Return a simple dictionary of object properties, excluding methods, internal attributes,
+        and properties listed in data_columns (use other methods for data columns).
+        
+        Returns:
+            dict: Simple property_name -> value mapping
+        """
+        # Get all attributes
+        all_attrs = dir(self)
+        
+        # Get data_columns to exclude
+        data_columns = getattr(self, 'data_columns', {})
+        
+        # Properties to ignore by name
+        ignore_properties = {'meta', 'data_columns', 'pot_offset', 'source_files', 'units', 'signal'} # TODO check signal data column
+        
+        # Filter and collect properties
+        properties = {}
+        for attr_name in all_attrs:
+            # Skip private/protected attributes
+            if attr_name.startswith('_'):
+                continue
+                
+            # Skip properties listed in data_columns
+            if attr_name in data_columns:
+                continue
+                
+            # Skip specific properties by name
+            if attr_name in ignore_properties:
+                continue
+                
+            try:
+                attr_value = getattr(self, attr_name)
+                
+                # Skip methods and functions
+                if callable(attr_value):
+                    continue
+                
+                properties[attr_name] = attr_value
+                
+            except (AttributeError, Exception):
+                # Skip attributes that can't be accessed
+                continue
+        
+        return properties

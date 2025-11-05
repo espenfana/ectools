@@ -354,7 +354,7 @@ class EcImporter:
                 coln = {} # identifier to column number dictionary
                 units = {} # identifier to column unit dictionary
                 for i, column_header in enumerate(header_row):
-                    for key, id_tuple in container.column_patterns.items():
+                    for key, id_tuple in container._column_patterns.items():
                         for id_rgx in id_tuple:
                             if re.match(id_rgx, column_header):
                                 coln[key] = i
@@ -466,7 +466,7 @@ class EcImporter:
             # Match the columns the container class expects with the columns in the header.
             # Need to maintain order as usecols does not!
             for i, colh in enumerate(headers):
-                for key, id_tuple in container.column_patterns.items():
+                for key, id_tuple in container._column_patterns.items():
                     for id_rgx in id_tuple:
                         m = re.match(id_rgx, colh)
                         if m:
@@ -511,7 +511,7 @@ class EcImporter:
         if ident is None:
             return ElectroChemistry
         for child in ElectroChemistry.__subclasses__():
-            for class_ident in child.identifiers:
+            for class_ident in child._identifiers:
                 if re.match(class_ident, ident):
                     return child
         return ElectroChemistry  # If no identifier is matched, return ElectroChemistry class
