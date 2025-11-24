@@ -7,3 +7,4 @@ from .chrono_amperometry import ChronoAmperometry
 from .chrono_potentiometry import ChronoPotentiometry
 from .open_circuit import OpenCircuit
 from .linear_sweep_voltammetry import LinearSweepVoltammetry
+from .electrochemical_impedance import ElectrochemicalImpedance

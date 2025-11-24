@@ -12,7 +12,7 @@ import pandas as pd
 
 
 # Relational imports
-from .classes import EcList, ElectroChemistry
+from .classes import EcList, ElectroChemistry, ElectrochemicalImpedance
 from .config import get_config, get_post_process
 from .auxiliary_sources import AuxiliaryDataHandler
 import warnings
@@ -205,7 +205,14 @@ class EcImporter:
             if successful_sources > 0:
                 # Add interpolated and calculated data axes
                 interpolated_count = 0
+                skipped_count = 0
                 for f in eclist:
+                    # Skip techniques that don't have standard time-series potential data
+                    if isinstance(f, ElectrochemicalImpedance):
+                        skipped_count += 1
+                        self.logger.debug('Skipping auxiliary data interpolation for EIS file: %s', f.fname)
+                        continue
+                    
                     for source_name in eclist.aux.sources:
                         source = getattr(eclist.aux, source_name, None)  # More explicit None default
                         if source is not None and hasattr(source, 'continuous_data') and source.continuous_data:
@@ -224,12 +231,15 @@ class EcImporter:
                                                   source_name, f.fname, e)
                 
                 # More accurate reporting
+                log_msg = f'Auxiliary data processing completed: {successful_sources}'
                 if failed_sources > 0:
-                    self.logger.info('Auxiliary data processing completed: %d/%d sources successful, %d interpolated columns total', 
-                                   successful_sources, total_requested, interpolated_count)
+                    log_msg += f'/{total_requested} sources successful'
                 else:
-                    self.logger.info('Successfully processed auxiliary data: %d sources, %d interpolated columns total', 
-                                   successful_sources, interpolated_count)
+                    log_msg += ' sources'
+                log_msg += f', {interpolated_count} interpolated columns total'
+                if skipped_count > 0:
+                    log_msg += f' ({skipped_count} files skipped - incompatible technique)'
+                self.logger.info(log_msg)
             else:
                 if failed_sources > 0:
                     self.logger.warning('All %d auxiliary data sources failed to load', failed_sources)
@@ -239,7 +249,6 @@ class EcImporter:
         POST_PROCESS = get_post_process()
         self.logger.debug(f'Post-processing with special logic: {POST_PROCESS is not None}')
         if POST_PROCESS:
-            self.logger.debug('Applying post-processing special logic...')
             if callable(POST_PROCESS):
                 self.logger.info('Applying post-processing special logic...')
                 try:
@@ -661,9 +670,6 @@ class EcImporter:
                         if len(filtered_files) == 0:
                             self.logger.warning('No files found for id_number %s, skipping', id_number)
                             continue
-                        elif len(filtered_files) == 1:
-                            self.logger.info('Only one file found for id_number %s, skipping collation', id_number)
-                            continue
                         
                         # Sort filtered files by starttime to ensure correct chronological order
                         try:
@@ -683,13 +689,18 @@ class EcImporter:
                             self.logger.warning('Could not sort files for id_number %s by starttime: %s. '
                                               'Proceeding with original order.', id_number, sort_error)
                         
-                        self.logger.info('Collating %d files for id_number %s into %s', 
-                                       len(filtered_files), id_number, target_class.__name__)
+                        # Log appropriate message based on number of files
+                        if len(filtered_files) == 1:
+                            self.logger.info('Converting single file for id_number %s to %s', 
+                                           id_number, target_class.__name__)
+                        else:
+                            self.logger.info('Collating %d files for id_number %s into %s', 
+                                           len(filtered_files), id_number, target_class.__name__)
                         
                         # Merge default kwargs with specific kwargs (specific takes precedence)
                         final_kwargs = {**default_kwargs, **specific_kwargs}
                         
-                        # Collate and convert the filtered files
+                        # Collate and convert the filtered files (works for both single and multiple files)
                         converted_obj = filtered_files.collate_convert(
                             target_class=target_class, 
                             cyclic=cyclic, 
@@ -699,8 +710,12 @@ class EcImporter:
                         # Replace the original files with the converted object
                         processed_eclist = processed_eclist.replace(converted_obj)
                         
-                        self.logger.info('Successfully collated id_number %s files into %s', 
-                                       id_number, target_class.__name__)
+                        if len(filtered_files) == 1:
+                            self.logger.info('Successfully converted single file id_number %s to %s', 
+                                           id_number, target_class.__name__)
+                        else:
+                            self.logger.info('Successfully collated id_number %s files into %s', 
+                                           id_number, target_class.__name__)
                         
                     except Exception as e:
                         self.logger.error('Error collating files for id_number %s: %s', id_number, e)
