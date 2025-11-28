@@ -54,6 +54,48 @@ class ElectrochemicalImpedance(ElectroChemistry):
         # Set technique-specific metadata
         self.tag: str = 'EIS'
         self.control: str = 'Impedance'
+        
+        # Initialize EIS-specific data_columns (will be updated after data load)
+        self.data_columns = {
+            'time': 'Time (s)',
+            'freq': 'Frequency (Hz)',
+            'z_real': "Z' (Ω)",
+            'z_imag': 'Z" (Ω)',
+            'z_mod': '|Z| (Ω)',
+            'z_phase': 'Phase (°)',
+        }
+
+    def _update_data_columns(self) -> None:
+        '''Update data_columns to only include columns that are actually present.
+        
+        Should be called after data has been loaded to ensure data_columns
+        accurately reflects available data.
+        '''
+        # Define all possible EIS columns with their display names
+        possible_columns = {
+            'time': 'Time (s)',
+            'freq': 'Frequency (Hz)',
+            'z_real': "Z' (Ω)",
+            'z_imag': 'Z" (Ω)',
+            'z_sig': 'Signal',
+            'z_mod': '|Z| (Ω)',
+            'z_phase': 'Phase (°)',
+            'idc': 'DC Current (A)',
+            'vdc': 'DC Voltage (V)',
+            'ie_range': 'Current Range',
+            'i_mod': 'AC Current (A)',
+            'v_mod': 'AC Voltage (V)',
+            'pot': 'Potential (V)',
+            'curr': 'Current (A)',
+            'temp': 'Temperature (°C)',
+        }
+        
+        # Only include columns that actually have data
+        self.data_columns = {
+            col: display_name 
+            for col, display_name in possible_columns.items()
+            if hasattr(self, col) and getattr(self, col) is not None and len(getattr(self, col)) > 0
+        }
 
     def parse_meta_gamry(self) -> None:
         '''Parse the metadata blocks into attributes for Gamry EIS files'''
@@ -84,16 +126,22 @@ class ElectrochemicalImpedance(ElectroChemistry):
                 self.v_dc_req = float(line[2]) if line[2] else None
             elif line[0] == 'ZGUESS':
                 self.z_guess = float(line[2]) if len(line) > 2 else None
+        
+        # Update data_columns to only include columns that are actually present
+        self._update_data_columns()
 
     def parse_meta_mpt(self) -> None:
         '''Parse the metadata blocks into attributes for EC-Lab EIS files'''
         super().parse_meta_mpt()  # Preprocess the metadata block
         # TODO: Add EC-Lab specific EIS metadata parsing if needed
+        
+        # Update data_columns to only include columns that are actually present
+        self._update_data_columns()
 
     @optional_return_figure
     def plot(self,
             ax: Optional[Axes] = None,
-            plot_type: str = 'nyquist',
+            plot_type: str = 'auto',
             x: Optional[str] = None,
             y: Optional[str] = None,
             hue: Optional[Union[str, bool]] = None,
@@ -105,7 +153,8 @@ class ElectrochemicalImpedance(ElectroChemistry):
         
         Args:
             ax: Matplotlib axes object. If None, creates new figure.
-            plot_type: Type of plot - 'nyquist', 'bode_mod', 'bode_phase', or 'custom'
+            plot_type: Type of plot - 'auto' (default), 'nyquist', 'bode_mod', 'bode_phase', or 'custom'
+                       'auto' plots z_mod vs time for single-frequency EIS, nyquist otherwise
             x: X-axis data column (for custom plots)
             y: Y-axis data column (for custom plots)
             hue: Column name for color grouping
@@ -118,7 +167,35 @@ class ElectrochemicalImpedance(ElectroChemistry):
         '''
         ax_kws = ax_kws or {}
         
-        if plot_type == 'nyquist':
+        # Auto-detect plot type based on data
+        if plot_type == 'auto':
+            # Check if this is single-frequency EIS (only one unique frequency)
+            if hasattr(self, 'freq') and len(np.unique(self.freq)) == 1:
+                # Single frequency monitoring - plot z_mod vs time
+                plot_type = 'z_mod_vs_time'
+            else:
+                # Multi-frequency sweep - default to Nyquist
+                plot_type = 'nyquist'
+        
+        # Helper to handle super().plot() return which may be (fig, ax) or just ax
+        def _call_parent_plot(**plot_kwargs):
+            result = super(ElectrochemicalImpedance, self).plot(**plot_kwargs, return_figure=True)
+            # Handle both return types from parent plot
+            if isinstance(result, tuple):
+                return result  # (fig, ax)
+            else:
+                return None, result  # Just ax was returned, no fig created
+        
+        if plot_type == 'z_mod_vs_time':
+            # Single-frequency EIS monitoring: |Z| vs time
+            x = 'time'
+            y = 'z_mod'
+            ax_kws.setdefault('xlabel', 'Time (s)')
+            ax_kws.setdefault('ylabel', '|Z| (Ω)')
+            ax_kws.setdefault('title', f'Impedance vs Time - {self.fname}')
+            fig, ax = _call_parent_plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws=ax_kws, **kwargs)
+            
+        elif plot_type == 'nyquist':
             # Nyquist plot: -Zimag vs Zreal
             x = 'z_real'
             y = 'z_imag'
@@ -127,13 +204,13 @@ class ElectrochemicalImpedance(ElectroChemistry):
             ax_kws.setdefault('ylabel', "-Z'' (Ω)")
             ax_kws.setdefault('title', f'Nyquist Plot - {self.fname}')
             
-            fig, ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue,
-                                 ax_kws=ax_kws, return_figure=True, **kwargs)
+            fig, ax_result = _call_parent_plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws=ax_kws, **kwargs)
             # Override y-data with negative values
             if mask is not None:
                 y_data = y_data[mask]
-            ax.lines[-1].set_ydata(y_data)
-            ax.set_aspect('equal', adjustable='datalim')
+            ax_result.lines[-1].set_ydata(y_data)
+            ax_result.set_aspect('equal', adjustable='datalim')
+            ax = ax_result
             
         elif plot_type == 'bode_mod':
             # Bode magnitude plot: log|Z| vs log(freq)
@@ -143,10 +220,10 @@ class ElectrochemicalImpedance(ElectroChemistry):
             ax_kws.setdefault('ylabel', '|Z| (Ω)')
             ax_kws.setdefault('title', f'Bode Plot (Magnitude) - {self.fname}')
             
-            fig, ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue,
-                                 ax_kws=ax_kws, return_figure=True, **kwargs)
-            ax.set_xscale('log')
-            ax.set_yscale('log')
+            fig, ax_result = _call_parent_plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws=ax_kws, **kwargs)
+            ax_result.set_xscale('log')
+            ax_result.set_yscale('log')
+            ax = ax_result
             
         elif plot_type == 'bode_phase':
             # Bode phase plot: phase vs log(freq)
@@ -156,33 +233,32 @@ class ElectrochemicalImpedance(ElectroChemistry):
             ax_kws.setdefault('ylabel', 'Phase (°)')
             ax_kws.setdefault('title', f'Bode Plot (Phase) - {self.fname}')
             
-            fig, ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue,
-                                 ax_kws=ax_kws, return_figure=True, **kwargs)
-            ax.set_xscale('log')
+            fig, ax_result = _call_parent_plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws=ax_kws, **kwargs)
+            ax_result.set_xscale('log')
+            ax = ax_result
             
         else:  # custom plot
             if x is None or y is None:
                 raise ValueError("For custom plots, both x and y must be specified")
-            fig, ax = super().plot(ax=ax, x=x, y=y, mask=mask, hue=hue,
-                                 ax_kws=ax_kws, return_figure=True, **kwargs)
+            fig, ax = _call_parent_plot(ax=ax, x=x, y=y, mask=mask, hue=hue, ax_kws=ax_kws, **kwargs)
         
         if hue:
             ax.legend(title=hue)
         
+        # Ensure we always return (fig, ax) tuple for consistency with decorator
+        # If ax was provided by user, fig will be None
         return fig, ax
 
     @optional_return_figure
     def plot_nyquist(self,
                     ax: Optional[Axes] = None,
-                    mask: Optional[np.ndarray] = None,
                     **kwargs: Any) -> Axes:
         '''Convenience method for Nyquist plot'''
-        return self.plot(ax=ax, plot_type='nyquist', mask=mask, return_figure=True, **kwargs)
+        return self.plot(ax=ax, plot_type='nyquist', return_figure=True, **kwargs)
 
     @optional_return_figure
     def plot_bode(self,
                  ax: Optional[Axes] = None,
-                 mask: Optional[np.ndarray] = None,
                  **kwargs: Any) -> Tuple[Axes, Axes]:
         '''
         Convenience method for combined Bode plot (magnitude and phase)
@@ -195,8 +271,22 @@ class ElectrochemicalImpedance(ElectroChemistry):
         from matplotlib import pyplot as plt
         fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 8), sharex=True)
         
-        _, ax1 = self.plot(ax=ax1, plot_type='bode_mod', mask=mask, return_figure=True, **kwargs)
-        _, ax2 = self.plot(ax=ax2, plot_type='bode_phase', mask=mask, return_figure=True, **kwargs)
+        # Plot magnitude (top panel)
+        ax1.plot(self.freq, self.z_mod, **kwargs)
+        ax1.set_xscale('log')
+        ax1.set_yscale('log')
+        ax1.set_xlabel('Frequency (Hz)')
+        ax1.set_ylabel('|Z| (Ω)')
+        ax1.set_title(f'Bode Plot (Magnitude) - {self.fname}')
+        ax1.legend()
+        
+        # Plot phase (bottom panel)
+        ax2.plot(self.freq, self.z_phase, **kwargs)
+        ax2.set_xscale('log')
+        ax2.set_xlabel('Frequency (Hz)')
+        ax2.set_ylabel('Phase (°)')
+        ax2.set_title(f'Bode Plot (Phase) - {self.fname}')
+        ax2.legend()
         
         plt.tight_layout()
         
