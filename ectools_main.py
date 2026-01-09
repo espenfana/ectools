@@ -216,18 +216,16 @@ class EcImporter:
             'config': {}
         }
         
-        # Gather ALL files (respecting folder filtering logic from load_folder)
-        data_id = data_folder_id or get_config('data_folder_identifier') or 'data'
-        
+        # Gather ALL files in the folder tree (respecting underscore filtering)
+        # This ensures cache is invalidated when any file changes
         for root, dirs, files in os.walk(fpath):
             folder_name = os.path.basename(root)
             
-            # Apply same filtering logic as load_folder for data folders
-            if root != fpath:
-                if folder_name.startswith('_'):
-                    continue
-                if data_id.lower() not in folder_name.lower():
-                    continue
+            # Skip folders starting with underscore (unless it's the root)
+            if root != fpath and folder_name.startswith('_'):
+                # Remove from dirs to prevent walking into them
+                dirs[:] = []
+                continue
             
             # Include all files in valid folders
             for fname in files:
@@ -244,6 +242,7 @@ class EcImporter:
                     self.logger.debug('Could not stat file %s: %s', file_path, e)
         
         # Add configuration that affects loaded data
+        data_id = data_folder_id or get_config('data_folder_identifier') or 'data'
         cache_data['config']['collation_mapping'] = str(collation_mapping) if collation_mapping else None
         cache_data['config']['aux_data_classes'] = [cls.__name__ for cls in (aux_data_classes or [])]
         cache_data['config']['fname_parser'] = fname_parser.__name__ if fname_parser else None
