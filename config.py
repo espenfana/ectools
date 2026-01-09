@@ -99,8 +99,11 @@ def get_cache_root():
 
 def set_cache_root(path):
     """Set the cache root directory."""
-    from pathlib import Path
-    _config['cache_root'] = str(Path(path).resolve())
+    if path is None:
+        _config['cache_root'] = None
+    else:
+        from pathlib import Path
+        _config['cache_root'] = str(Path(path).resolve())
 
 def get_cache_enabled():
     """Check if caching is enabled."""
