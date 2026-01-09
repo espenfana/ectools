@@ -22,6 +22,9 @@ _config = {
     'cycle_convension': 'v2', # "v2" (2nd vertex) or "init"  (initial value)
     'data_folder_identifier': 'data',  # Identifier for data folder
     'auxiliary_folder_identifier': 'auxiliary',  # Identifier for auxiliary folder
+    'cache_enabled': True,  # Enable/disable caching globally
+    'cache_location': 'project',  # 'local', 'user', 'project', or absolute path
+    'cache_root': None,  # If set, overrides cache_location auto-detection
 }
 
 def set_config(key, value):
@@ -89,6 +92,23 @@ def requires_bokeh(func):
             raise RuntimeError("Bokeh is not available. Install Bokeh to use this feature.")
         return func(*args, **kwargs)
     return wrapper
+
+def get_cache_root():
+    """Get the configured cache root directory."""
+    return _config.get('cache_root', None)
+
+def set_cache_root(path):
+    """Set the cache root directory."""
+    from pathlib import Path
+    _config['cache_root'] = str(Path(path).resolve())
+
+def get_cache_enabled():
+    """Check if caching is enabled."""
+    return _config.get('cache_enabled', True)
+
+def set_cache_enabled(enabled):
+    """Enable or disable caching globally."""
+    _config['cache_enabled'] = bool(enabled)
 
 class BokehSettings:
     """Class to handle Bokeh-specific plotting settings."""

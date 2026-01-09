@@ -3,7 +3,11 @@
 import logging
 import os
 import re
+import pickle
+import hashlib
+import json
 from datetime import datetime
+from pathlib import Path
 from typing import Dict
 
 # Third-party imports
@@ -13,7 +17,7 @@ import pandas as pd
 
 # Relational imports
 from .classes import EcList, ElectroChemistry, ElectrochemicalImpedance
-from .config import get_config, get_post_process
+from .config import get_config, get_post_process, get_cache_enabled, get_cache_root
 from .auxiliary_sources import AuxiliaryDataHandler
 import warnings
 # classes is a collection of container objects meant for different methods
@@ -31,17 +35,20 @@ class EcImporter:
         load_file(fpath: str, fname: str):
             Load and parse an electrochemistry file.
     """
-    def __init__(self, fname_parser=None, aux_data_classes=None, log_level="WARNING", **kwargs):
+    def __init__(self, fname_parser=None, aux_data_classes=None, log_level="WARNING", 
+                 cache_root=None, **kwargs):
         '''
         fname_parser: optional function to parse information from the file name and path.
             Expected to return a dictionary, from which the key-value pairs are added to the 
             container object returned from load_file.
         log_level: logging level for the logger as a string (e.g., "DEBUG", "INFO", "ERROR").
+        cache_root: optional cache root directory override for this importer instance.
         kwargs: key-val pairs added to this instance.
         '''
         self.fname_parser = fname_parser
         #self.aux_importer = aux_importer
         self.aux_data_classes = aux_data_classes or []
+        self.cache_root = cache_root
         self._setup_logging(log_level)
  
         for key, val in kwargs.items():
@@ -105,8 +112,341 @@ class EcImporter:
         # Add handlers to the logger
         self.logger.addHandler(console_handler)
 
+    def _find_project_root(self, start_path):
+        """
+        Find project root directory by looking for common project markers.
+        
+        Args:
+            start_path: Path to start searching from
+            
+        Returns:
+            Path: Project root directory or start_path if not found
+        """
+        markers = ['.git', 'pyproject.toml', 'setup.py', 'setup.cfg', 'requirements.txt', '.gitignore']
+        current = Path(start_path).resolve()
+        
+        # Walk up the directory tree
+        for parent in [current] + list(current.parents):
+            for marker in markers:
+                if (parent / marker).exists():
+                    self.logger.debug('Found project root at %s (marker: %s)', parent, marker)
+                    return parent
+        
+        self.logger.warning('No project root found, using start path: %s', start_path)
+        return current
+
+    def _get_cache_dir(self, data_path):
+        """
+        Determine cache directory based on configuration.
+        
+        Args:
+            data_path: Path to the data folder being cached
+            
+        Returns:
+            Path: Cache directory for this data folder
+        """
+        # Determine cache root
+        cache_root = None
+        
+        # Check instance cache_root first
+        if self.cache_root:
+            cache_root = Path(self.cache_root)
+        # Then check config cache_root
+        elif get_cache_root():
+            cache_root = Path(get_cache_root())
+        # Then use cache_location setting
+        else:
+            cache_location = get_config('cache_location') or 'project'
+            
+            if cache_location == 'local':
+                # Store in data folder itself
+                cache_root = Path(data_path)
+            elif cache_location == 'project':
+                # Find project root and use it
+                cache_root = self._find_project_root(data_path)
+            elif cache_location == 'user':
+                # Use user cache directory (platform-specific)
+                if os.name == 'nt':  # Windows
+                    cache_root = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'ectools' / 'Cache'
+                elif os.sys.platform == 'darwin':  # macOS
+                    cache_root = Path.home() / 'Library' / 'Caches' / 'ectools'
+                else:  # Linux/Unix
+                    cache_root = Path.home() / '.cache' / 'ectools'
+            else:
+                # Assume it's an absolute path
+                cache_root = Path(cache_location)
+        
+        # Create hash of data path for subdirectory
+        data_path_resolved = str(Path(data_path).resolve())
+        path_hash = hashlib.md5(data_path_resolved.encode()).hexdigest()[:12]
+        
+        # Create cache directory structure
+        cache_dir = cache_root / '.ectools_cache' / path_hash
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Write reference file
+        ref_file = cache_dir / 'data_path.txt'
+        if not ref_file.exists():
+            try:
+                ref_file.write_text(data_path_resolved, encoding='utf-8')
+            except Exception as e:
+                self.logger.warning('Could not write cache reference file: %s', e)
+        
+        self.logger.debug('Cache directory: %s', cache_dir)
+        return cache_dir
+
+    def _get_cache_key(self, fpath, collation_mapping, aux_data_classes, 
+                       data_folder_id, aux_folder_id, fname_parser):
+        """
+        Generate cache key based on all files in the folder and configuration.
+        
+        Args:
+            fpath: Root folder path
+            collation_mapping: Collation configuration
+            aux_data_classes: Auxiliary data classes
+            data_folder_id: Data folder identifier
+            aux_folder_id: Auxiliary folder identifier
+            fname_parser: Filename parser function
+            
+        Returns:
+            str: MD5 hash representing this specific dataset and configuration
+        """
+        cache_data = {
+            'files': [],
+            'config': {}
+        }
+        
+        # Gather ALL files (respecting folder filtering logic from load_folder)
+        data_id = data_folder_id or get_config('data_folder_identifier') or 'data'
+        
+        for root, dirs, files in os.walk(fpath):
+            folder_name = os.path.basename(root)
+            
+            # Apply same filtering logic as load_folder for data folders
+            if root != fpath:
+                if folder_name.startswith('_'):
+                    continue
+                if data_id.lower() not in folder_name.lower():
+                    continue
+            
+            # Include all files in valid folders
+            for fname in files:
+                file_path = os.path.join(root, fname)
+                try:
+                    stat = os.stat(file_path)
+                    rel_path = os.path.relpath(file_path, fpath)
+                    cache_data['files'].append({
+                        'path': rel_path,
+                        'mtime': stat.st_mtime,
+                        'size': stat.st_size
+                    })
+                except (OSError, PermissionError) as e:
+                    self.logger.debug('Could not stat file %s: %s', file_path, e)
+        
+        # Add configuration that affects loaded data
+        cache_data['config']['collation_mapping'] = str(collation_mapping) if collation_mapping else None
+        cache_data['config']['aux_data_classes'] = [cls.__name__ for cls in (aux_data_classes or [])]
+        cache_data['config']['fname_parser'] = fname_parser.__name__ if fname_parser else None
+        cache_data['config']['data_folder_id'] = data_id
+        cache_data['config']['aux_folder_id'] = aux_folder_id or get_config('auxiliary_folder_identifier') or 'aux'
+        # Explicitly exclude sort_by - it doesn't affect data, only order
+        
+        # Generate hash
+        cache_str = json.dumps(cache_data, sort_keys=True)
+        cache_hash = hashlib.md5(cache_str.encode()).hexdigest()
+        
+        self.logger.debug('Cache key generated: %s (based on %d total files)', 
+                         cache_hash, len(cache_data['files']))
+        
+        return cache_hash
+
+    def _save_cache(self, cache_file, eclist):
+        """
+        Save EcList to cache file.
+        
+        Args:
+            cache_file: Path to cache file
+            eclist: EcList object to save
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Save pickle
+            with open(cache_file, 'wb') as f:
+                pickle.dump(eclist, f, protocol=pickle.HIGHEST_PROTOCOL)
+            
+            # Save metadata
+            metadata_file = cache_file.with_suffix('.json')
+            metadata = {
+                'timestamp': datetime.now().isoformat(),
+                'file_count': len(eclist),
+                'cache_size_bytes': os.path.getsize(cache_file)
+            }
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                json.dump(metadata, f, indent=2)
+            
+            size_mb = metadata['cache_size_bytes'] / (1024 * 1024)
+            self.logger.info('Cache saved successfully: %d files, %.2f MB', 
+                           metadata['file_count'], size_mb)
+            return True
+            
+        except Exception as e:
+            self.logger.warning('Failed to save cache: %s', e)
+            # Clean up partial files
+            try:
+                if cache_file.exists():
+                    cache_file.unlink()
+                metadata_file = cache_file.with_suffix('.json')
+                if metadata_file.exists():
+                    metadata_file.unlink()
+            except Exception:
+                pass
+            return False
+
+    def _load_cache(self, cache_file):
+        """
+        Load EcList from cache file.
+        
+        Args:
+            cache_file: Path to cache file
+            
+        Returns:
+            EcList or None: Loaded EcList or None if failed
+        """
+        try:
+            with open(cache_file, 'rb') as f:
+                eclist = pickle.load(f)
+            
+            self.logger.info('Cache loaded successfully: %d files', len(eclist))
+            return eclist
+            
+        except Exception as e:
+            self.logger.warning('Failed to load cache: %s', e)
+            return None
+
+    def cache_info(self, fpath):
+        """
+        Get information about cached data for a folder.
+        
+        Args:
+            fpath: Path to data folder
+            
+        Returns:
+            dict: Cache information
+        """
+        try:
+            cache_dir = self._get_cache_dir(fpath)
+            
+            # Read data path reference
+            ref_file = cache_dir / 'data_path.txt'
+            data_path = ref_file.read_text(encoding='utf-8').strip() if ref_file.exists() else 'Unknown'
+            
+            # Find all cache files
+            cache_files = list(cache_dir.glob('*.pkl'))
+            
+            cache_info_list = []
+            total_size = 0
+            
+            for cache_file in cache_files:
+                metadata_file = cache_file.with_suffix('.json')
+                
+                file_info = {
+                    'cache_key': cache_file.stem,
+                    'cache_file': str(cache_file),
+                    'size_mb': os.path.getsize(cache_file) / (1024 * 1024)
+                }
+                total_size += os.path.getsize(cache_file)
+                
+                if metadata_file.exists():
+                    try:
+                        with open(metadata_file, 'r', encoding='utf-8') as f:
+                            metadata = json.load(f)
+                        file_info.update(metadata)
+                    except Exception:
+                        pass
+                
+                cache_info_list.append(file_info)
+            
+            return {
+                'cache_exists': len(cache_files) > 0,
+                'cache_dir': str(cache_dir),
+                'data_path': data_path,
+                'n_cache_files': len(cache_files),
+                'total_size_mb': total_size / (1024 * 1024),
+                'cache_files': cache_info_list
+            }
+            
+        except Exception as e:
+            self.logger.error('Error getting cache info: %s', e)
+            return {
+                'cache_exists': False,
+                'error': str(e)
+            }
+
+    def clear_cache(self, fpath=None, all_caches=False):
+        """
+        Clear cache files.
+        
+        Args:
+            fpath: Path to data folder (if None and all_caches=False, clears all)
+            all_caches: If True, clear all caches in cache root
+            
+        Returns:
+            bool: True if successful
+        """
+        try:
+            if all_caches or fpath is None:
+                # Clear entire .ectools_cache directory
+                cache_root = None
+                
+                if self.cache_root:
+                    cache_root = Path(self.cache_root)
+                elif get_cache_root():
+                    cache_root = Path(get_cache_root())
+                else:
+                    cache_location = get_config('cache_location') or 'project'
+                    if cache_location == 'project':
+                        # Use current working directory as fallback
+                        cache_root = self._find_project_root(os.getcwd())
+                    elif cache_location == 'user':
+                        if os.name == 'nt':
+                            cache_root = Path(os.environ.get('LOCALAPPDATA', Path.home())) / 'ectools' / 'Cache'
+                        elif os.sys.platform == 'darwin':
+                            cache_root = Path.home() / 'Library' / 'Caches' / 'ectools'
+                        else:
+                            cache_root = Path.home() / '.cache' / 'ectools'
+                    else:
+                        cache_root = Path(cache_location)
+                
+                cache_dir = cache_root / '.ectools_cache'
+                
+                if cache_dir.exists():
+                    import shutil
+                    shutil.rmtree(cache_dir)
+                    self.logger.info('Cleared all caches in: %s', cache_dir)
+                else:
+                    self.logger.info('No cache directory found at: %s', cache_dir)
+                
+            else:
+                # Clear cache for specific folder
+                cache_dir = self._get_cache_dir(fpath)
+                
+                if cache_dir.exists():
+                    import shutil
+                    shutil.rmtree(cache_dir)
+                    self.logger.info('Cleared cache for: %s', fpath)
+                else:
+                    self.logger.info('No cache found for: %s', fpath)
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error('Error clearing cache: %s', e)
+            return False
+
     def load_folder(self, fpath: str, data_folder_id=None, aux_folder_id=None, sort_by=None, 
-                    collation_mapping=None, aux_only=False, **kwargs) -> EcList:
+                    collation_mapping=None, aux_only=False, use_cache=None, **kwargs) -> EcList:
         '''
         Parse and load the contents of a folder and its subfolders.
         Ignores folders starting with '_' and only includes subfolders containing data_folder_id.
@@ -128,11 +468,45 @@ class EcImporter:
                                9: {'label': 'E3 experiment'}}, 'cyclic': False}}
             aux_only: If True, skip loading electrochemistry data files and only load auxiliary data.
                      Useful for quick access to temperature, pico data, etc. Default False.
+            use_cache: If True, use cache; if False, skip cache; if None, use config default.
             **kwargs: Additional arguments passed to EcList
         '''
+        # Determine if caching enabled
+        if use_cache is None:
+            use_cache = get_cache_enabled()
+        
         # Get folder identifiers from config or use overrides
         data_id = data_folder_id or get_config('data_folder_identifier') or 'data'
         aux_id = aux_folder_id or get_config('auxiliary_folder_identifier') or 'aux'
+        
+        # Try to load from cache
+        if use_cache:
+            try:
+                cache_dir = self._get_cache_dir(fpath)
+                cache_key = self._get_cache_key(fpath, collation_mapping, self.aux_data_classes,
+                                               data_folder_id, aux_folder_id, self.fname_parser)
+                cache_file = cache_dir / f"{cache_key}.pkl"
+                
+                if cache_file.exists():
+                    self.logger.info('Cache hit - loading from cache')
+                    eclist = self._load_cache(cache_file)
+                    if eclist is not None:
+                        # Apply sorting AFTER loading from cache
+                        # (so different sort_by doesn't create new cache)
+                        if sort_by and len(eclist) > 0:
+                            try:
+                                if hasattr(eclist[0], sort_by):
+                                    eclist.sort(key=lambda f: getattr(f, sort_by))
+                                    self.logger.info('Sorted EcList by attribute: %s', sort_by)
+                                else:
+                                    self.logger.warning('Sort attribute "%s" not found in files, skipping sort', sort_by)
+                            except Exception as e:
+                                self.logger.warning('Error sorting by "%s": %s', sort_by, e)
+                        return eclist
+                else:
+                    self.logger.info('Cache miss - loading data from files')
+            except Exception as e:
+                self.logger.warning('Error checking cache: %s. Loading from files.', e)
         
         self.logger.debug('Using folder identifiers - data: "%s", aux: "%s"', data_id, aux_id)
         
@@ -288,6 +662,14 @@ class EcImporter:
                 self.logger.warning('Error sorting by "%s": %s', sort_by, e)
         
         eclist._generate_fid_idx()  # pylint: disable=protected-access #(because timing)
+        
+        # Save to cache if enabled and not already loaded from cache
+        if use_cache:
+            try:
+                self._save_cache(cache_file, eclist)
+            except Exception as e:
+                self.logger.warning('Error saving cache: %s', e)
+        
         return eclist
 
     def load_file(self, fpath, fname):
