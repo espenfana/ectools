@@ -23,8 +23,8 @@ _config = {
     'data_folder_identifier': 'data',  # Identifier for data folder
     'auxiliary_folder_identifier': 'auxiliary',  # Identifier for auxiliary folder
     'cache_enabled': True,  # Enable/disable caching globally
-    'cache_location': 'project',  # 'local', 'user', 'project', or absolute path
-    'cache_root': None,  # If set, overrides cache_location auto-detection
+    'cache_location': 'local',  # 'local', 'user', 'project', or absolute path
+    'cache_root': r'C:/code/experimentals',  # If set, overrides cache_location auto-detection
 }
 
 def set_config(key, value):

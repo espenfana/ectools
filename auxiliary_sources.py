@@ -201,6 +201,22 @@ class AuxiliaryDataSource(ABC):
         '''Check if attribute exists (for use with 'in' operator)'''
         return hasattr(self, key)
 
+    def __getstate__(self):
+        """Remove unpicklable objects before pickling."""
+        state = self.__dict__.copy()
+        # Remove logger (contains file handles, can't be pickled)
+        if 'logger' in state: 
+            del state['logger']
+        return state
+    
+    def __setstate__(self, state):
+        """Recreate unpicklable objects after unpickling."""
+        self.__dict__.update(state)
+        # Recreate logger with same configuration
+        import logging
+        logger_name = f'{self.__module__}.{self.__class__.__name__}'
+        self.logger = logging.getLogger(logger_name)
+    
     # --- Data import methods ---
     @abstractmethod
     def load_data(self) -> Optional['AuxiliaryDataSource']:
