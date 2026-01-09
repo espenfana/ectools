@@ -271,6 +271,26 @@ class EcImporter:
             bool: True if successful, False otherwise
         """
         try:
+            # === CLEANUP OLD CACHES ===
+            # Delete obsolete cache files before saving new one
+            cache_dir = cache_file.parent
+            existing_caches = list(cache_dir.glob('*.pkl'))
+            
+            # Delete all existing caches except the one we're about to create
+            for old_cache in existing_caches:
+                if old_cache != cache_file:
+                    try:
+                        old_cache.unlink()
+                        # Also delete corresponding metadata file
+                        old_metadata = old_cache.with_suffix('.json')
+                        if old_metadata.exists():
+                            old_metadata.unlink()
+                        self.logger.debug('Deleted obsolete cache: %s', old_cache.name)
+                    except Exception as e:
+                        self.logger.warning('Could not delete old cache %s: %s', 
+                                          old_cache.name, e)
+            
+            # === SAVE NEW CACHE ===
             # Save pickle
             with open(cache_file, 'wb') as f:
                 pickle.dump(eclist, f, protocol=pickle.HIGHEST_PROTOCOL)
