@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 # Add parent directory to path to import ectools
-# From testing/ we need to go up twice to reach /home/runner/work/ectools
+# Navigate up from testing/ -> ectools/ -> work/ectools/ (repository root parent)
 parent_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(parent_dir))
 

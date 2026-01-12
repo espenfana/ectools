@@ -286,12 +286,18 @@ class EcImporter:
                 existing_caches.sort(key=lambda x: x[1])
                 
                 # Calculate how many caches to delete
-                # We're about to add 1 new cache, so keep (max_caches - 1) existing ones
-                caches_to_delete = len(existing_caches) - (max_caches - 1)
+                # If the cache file we're about to save already exists, it's included in existing_caches
+                # Otherwise, we're adding a new one
+                cache_exists = cache_file.exists()
+                num_after_save = len(existing_caches) if cache_exists else len(existing_caches) + 1
+                caches_to_delete = num_after_save - max_caches
                 
                 if caches_to_delete > 0:
                     # Delete oldest caches
                     for old_cache, _ in existing_caches[:caches_to_delete]:
+                        # Don't delete the cache file we're about to overwrite
+                        if old_cache == cache_file:
+                            continue
                         try:
                             old_cache.unlink()
                             # Also delete corresponding metadata file
