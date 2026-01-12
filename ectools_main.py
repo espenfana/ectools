@@ -17,7 +17,7 @@ import pandas as pd
 
 # Relational imports
 from .classes import EcList, ElectroChemistry, ElectrochemicalImpedance
-from .config import get_config, get_post_process, get_cache_enabled, get_cache_root
+from .config import get_config, get_post_process, get_cache_enabled, get_cache_root, get_max_cache_files
 from .auxiliary_sources import AuxiliaryDataHandler
 import warnings
 # classes is a collection of container objects meant for different methods
@@ -271,24 +271,43 @@ class EcImporter:
             bool: True if successful, False otherwise
         """
         try:
-            # === CLEANUP OLD CACHES ===
-            # Delete obsolete cache files before saving new one
+            # === CLEANUP OLD CACHES (LRU strategy) ===
+            max_caches = get_max_cache_files()
             cache_dir = cache_file.parent
             
-            # Check if cache directory exists before globbing
             if cache_dir.exists():
-                existing_caches = list(cache_dir.glob('*.pkl'))
+                # Find all existing cache files with their modification times
+                # Exclude the cache file we're about to save from the existing list
+                existing_caches = []
+                for f in cache_dir.glob('*.pkl'):
+                    # Skip the cache file we're about to save (compare by resolved path)
+                    if f.resolve() == cache_file.resolve():
+                        continue
+                    try:
+                        mtime = f.stat().st_mtime
+                        existing_caches.append((f, mtime))
+                    except (OSError, PermissionError, FileNotFoundError) as e:
+                        # File may have been deleted or is inaccessible
+                        self.logger.debug('Could not stat cache file %s: %s', f.name, e)
                 
-                # Delete all existing caches except the one we're about to create
-                for old_cache in existing_caches:
-                    if old_cache != cache_file:
+                # Sort by modification time (oldest first)
+                existing_caches.sort(key=lambda x: x[1])
+                
+                # Calculate how many caches to delete
+                # After saving, we'll have len(existing_caches) + 1 total caches
+                num_after_save = len(existing_caches) + 1
+                caches_to_delete = num_after_save - max_caches
+                
+                if caches_to_delete > 0:
+                    # Delete oldest caches
+                    for old_cache, _ in existing_caches[:caches_to_delete]:
                         try:
                             old_cache.unlink()
                             # Also delete corresponding metadata file
                             old_metadata = old_cache.with_suffix('.json')
                             if old_metadata.exists():
                                 old_metadata.unlink()
-                            self.logger.debug('Deleted obsolete cache: %s', old_cache.name)
+                            self.logger.debug('Deleted old cache (LRU): %s', old_cache.name)
                         except (PermissionError, FileNotFoundError, OSError) as e:
                             self.logger.warning('Could not delete old cache %s: %s', 
                                               old_cache.name, e)

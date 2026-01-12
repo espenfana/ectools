@@ -25,6 +25,7 @@ _config = {
     'cache_enabled': True,  # Enable/disable caching globally
     'cache_location': 'local',  # 'local', 'user', 'project', or absolute path
     'cache_root': r'C:/code/experimentals',  # If set, overrides cache_location auto-detection
+    'max_cache_files': 3,  # Maximum cache files to keep per data folder
 }
 
 def set_config(key, value):
@@ -112,6 +113,24 @@ def get_cache_enabled():
 def set_cache_enabled(enabled):
     """Enable or disable caching globally."""
     _config['cache_enabled'] = bool(enabled)
+
+def get_max_cache_files():
+    """Get maximum number of cache files to keep per data folder."""
+    return _config.get('max_cache_files', 3)
+
+def set_max_cache_files(count):
+    """Set maximum number of cache files to keep per data folder.
+    
+    Args:
+        count: Maximum number of cache files (must be positive integer)
+        
+    Raises:
+        ValueError: If count is not a positive integer
+    """
+    count = int(count)
+    if count < 1:
+        raise ValueError(f'max_cache_files must be a positive integer (got {count})')
+    _config['max_cache_files'] = count
 
 class BokehSettings:
     """Class to handle Bokeh-specific plotting settings."""
