@@ -278,11 +278,17 @@ class EcImporter:
             if cache_dir.exists():
                 # Find all existing cache files with their modification times
                 # Exclude the cache file we're about to save from the existing list
-                existing_caches = [
-                    (f, f.stat().st_mtime) 
-                    for f in cache_dir.glob('*.pkl')
-                    if f != cache_file
-                ]
+                existing_caches = []
+                for f in cache_dir.glob('*.pkl'):
+                    # Skip the cache file we're about to save (compare by resolved path)
+                    if f.resolve() == cache_file.resolve():
+                        continue
+                    try:
+                        mtime = f.stat().st_mtime
+                        existing_caches.append((f, mtime))
+                    except (OSError, PermissionError, FileNotFoundError) as e:
+                        # File may have been deleted or is inaccessible
+                        self.logger.debug('Could not stat cache file %s: %s', f.name, e)
                 
                 # Sort by modification time (oldest first)
                 existing_caches.sort(key=lambda x: x[1])

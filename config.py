@@ -129,7 +129,7 @@ def set_max_cache_files(count):
     """
     count = int(count)
     if count < 1:
-        raise ValueError('max_cache_files must be a positive integer (got {})'.format(count))
+        raise ValueError(f'max_cache_files must be a positive integer (got {count})')
     _config['max_cache_files'] = count
 
 class BokehSettings:
