@@ -277,27 +277,24 @@ class EcImporter:
             
             if cache_dir.exists():
                 # Find all existing cache files with their modification times
+                # Exclude the cache file we're about to save from the existing list
                 existing_caches = [
                     (f, f.stat().st_mtime) 
                     for f in cache_dir.glob('*.pkl')
+                    if f != cache_file
                 ]
                 
                 # Sort by modification time (oldest first)
                 existing_caches.sort(key=lambda x: x[1])
                 
                 # Calculate how many caches to delete
-                # If the cache file we're about to save already exists, it's included in existing_caches
-                # Otherwise, we're adding a new one
-                cache_exists = cache_file.exists()
-                num_after_save = len(existing_caches) if cache_exists else len(existing_caches) + 1
+                # After saving, we'll have len(existing_caches) + 1 total caches
+                num_after_save = len(existing_caches) + 1
                 caches_to_delete = num_after_save - max_caches
                 
                 if caches_to_delete > 0:
                     # Delete oldest caches
                     for old_cache, _ in existing_caches[:caches_to_delete]:
-                        # Don't delete the cache file we're about to overwrite
-                        if old_cache == cache_file:
-                            continue
                         try:
                             old_cache.unlink()
                             # Also delete corresponding metadata file

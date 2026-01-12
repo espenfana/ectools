@@ -119,8 +119,18 @@ def get_max_cache_files():
     return _config.get('max_cache_files', 3)
 
 def set_max_cache_files(count):
-    """Set maximum number of cache files to keep per data folder."""
-    _config['max_cache_files'] = int(count)
+    """Set maximum number of cache files to keep per data folder.
+    
+    Args:
+        count: Maximum number of cache files (must be positive integer)
+        
+    Raises:
+        ValueError: If count is not a positive integer
+    """
+    count = int(count)
+    if count < 1:
+        raise ValueError('max_cache_files must be a positive integer (got {})'.format(count))
+    _config['max_cache_files'] = count
 
 class BokehSettings:
     """Class to handle Bokeh-specific plotting settings."""
