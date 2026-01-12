@@ -17,7 +17,7 @@ import pandas as pd
 
 # Relational imports
 from .classes import EcList, ElectroChemistry, ElectrochemicalImpedance
-from .config import get_config, get_post_process, get_cache_enabled, get_cache_root
+from .config import get_config, get_post_process, get_cache_enabled, get_cache_root, get_max_cache_files
 from .auxiliary_sources import AuxiliaryDataHandler
 import warnings
 # classes is a collection of container objects meant for different methods
@@ -272,8 +272,6 @@ class EcImporter:
         """
         try:
             # === CLEANUP OLD CACHES (LRU strategy) ===
-            from .config import get_max_cache_files
-            
             max_caches = get_max_cache_files()
             cache_dir = cache_file.parent
             

@@ -11,7 +11,8 @@ import time
 from pathlib import Path
 
 # Add parent directory to path to import ectools
-parent_dir = Path(__file__).parent.parent.parent
+# From testing/ we need to go up twice to reach /home/runner/work/ectools
+parent_dir = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(parent_dir))
 
 import ectools as ec
@@ -41,7 +42,7 @@ def test_lru_cache_multiple_params():
         cache_file.unlink()
     
     # Load with first configuration
-    print("\nLoading with config 1 (fname_parser=mc_filename_parser)...")
+    print("\nLoading with config 1 (fname_parser=example_filename_parser)...")
     eclist1 = imp1.load_folder(str(data_path))
     time.sleep(0.1)  # Small delay to ensure different mtimes
     
