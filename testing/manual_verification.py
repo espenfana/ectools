@@ -73,11 +73,16 @@ def main():
     # 6. Test with max_cache_files=1 (old behavior)
     print("\n6. Testing with max_cache_files=1 (old behavior)...")
     ec.set_max_cache_files(1)
-    imp3 = ec.EcImporter(fname_parser=example_filename_parser, log_level="WARNING")
-    eclist3 = imp3.load_folder(str(data_path))
+    
+    # Create a different parser to trigger new cache
+    def new_parser(fpath, fname):
+        return {'test': 'new'}
+    
+    imp_new = ec.EcImporter(fname_parser=new_parser, log_level="WARNING")
+    eclist_new = imp_new.load_folder(str(data_path))
     cache_files = list(cache_dir.glob('*.pkl'))
-    print(f"   ✓ Loaded {len(eclist3)} files")
-    print(f"   ✓ Cache files: {len(cache_files)} (only 1 kept, old behavior)")
+    print(f"   ✓ Loaded {len(eclist_new)} files with new config")
+    print(f"   ✓ Cache files: {len(cache_files)} (only 1 kept with max=1)")
     
     # 7. Verify data_path.txt is preserved
     print("\n7. Verifying data_path.txt is preserved...")
