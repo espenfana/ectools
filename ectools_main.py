@@ -271,24 +271,36 @@ class EcImporter:
             bool: True if successful, False otherwise
         """
         try:
-            # === CLEANUP OLD CACHES ===
-            # Delete obsolete cache files before saving new one
+            # === CLEANUP OLD CACHES (LRU strategy) ===
+            from .config import get_max_cache_files
+            
+            max_caches = get_max_cache_files()
             cache_dir = cache_file.parent
             
-            # Check if cache directory exists before globbing
             if cache_dir.exists():
-                existing_caches = list(cache_dir.glob('*.pkl'))
+                # Find all existing cache files with their modification times
+                existing_caches = [
+                    (f, f.stat().st_mtime) 
+                    for f in cache_dir.glob('*.pkl')
+                ]
                 
-                # Delete all existing caches except the one we're about to create
-                for old_cache in existing_caches:
-                    if old_cache != cache_file:
+                # Sort by modification time (oldest first)
+                existing_caches.sort(key=lambda x: x[1])
+                
+                # Calculate how many caches to delete
+                # We're about to add 1 new cache, so keep (max_caches - 1) existing ones
+                caches_to_delete = len(existing_caches) - (max_caches - 1)
+                
+                if caches_to_delete > 0:
+                    # Delete oldest caches
+                    for old_cache, _ in existing_caches[:caches_to_delete]:
                         try:
                             old_cache.unlink()
                             # Also delete corresponding metadata file
                             old_metadata = old_cache.with_suffix('.json')
                             if old_metadata.exists():
                                 old_metadata.unlink()
-                            self.logger.debug('Deleted obsolete cache: %s', old_cache.name)
+                            self.logger.debug('Deleted old cache (LRU): %s', old_cache.name)
                         except (PermissionError, FileNotFoundError, OSError) as e:
                             self.logger.warning('Could not delete old cache %s: %s', 
                                               old_cache.name, e)
